@@ -54,10 +54,8 @@ exports.loginHospital = async (req, res) => {
     }
 };
 
-// --- Get Hospital Resources ---
 exports.getResources = async (req, res) => {
     try {
-        // Look for the ID in req.user OR req.hospital
         const userObj = req.user || req.hospital;
         if (!userObj) return res.status(401).json({ error: "Unauthorized: No token data found" });
 
@@ -81,7 +79,7 @@ exports.updateResources = async (req, res) => {
 
         const updatedHospital = await Hospital.findByIdAndUpdate(
             hospitalId,
-            { resources: req.body }, 
+            { resources: req.body },
             { new: true }
         );
 
@@ -93,10 +91,8 @@ exports.updateResources = async (req, res) => {
         res.status(500).json({ error: error.message });
     }
 };
-// Add this to your hospitalController.js
 exports.getAllHospitals = async (req, res) => {
     try {
-        // This fetches all hospitals but hides the password for security
         const hospitals = await Hospital.find({}, "-password"); 
         res.status(200).json(hospitals);
     } catch (error) {

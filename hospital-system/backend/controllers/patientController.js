@@ -3,7 +3,7 @@ const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 
 exports.registerPatient = async (req, res) => {
-  try {
+    try {
 
     console.log("Register API called");
     console.log(req.body);

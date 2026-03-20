@@ -1,10 +1,6 @@
-const express = require("express");
-const router = express.Router();
-const auth = require("../middleware/authMiddleware");
-const upload = require("../middleware/upload");
 const Hospital = require("../models/Hospital");
 
-router.post("/hospital-photo", auth, upload.single("image"), async (req, res) => {
+exports.uploadHospitalPhoto = async (req, res) => {
     try {
         const userObj = req.user || req.hospital;
         const hospitalId = userObj.id || userObj._id;
@@ -26,17 +22,28 @@ router.post("/hospital-photo", auth, upload.single("image"), async (req, res) =>
         console.error("Upload Error:", error);
         res.status(500).json({ error: error.message });
     }
-});
+};
 
-router.delete("/hospital-photo", auth, async (req, res) => {
+exports.getHospitalPhotos = async (req, res) => {
     try {
         const userObj = req.user || req.hospital;
         const hospitalId = userObj.id || userObj._id;
-        
+
+        const hospital = await Hospital.findById(hospitalId);
+        res.json({ photos: hospital.photos || [] });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+exports.deleteHospitalPhoto = async (req, res) => {
+    try {
+        const userObj = req.user || req.hospital;
+        const hospitalId = userObj.id || userObj._id;
         const { photoUrl } = req.body;
 
         if (!photoUrl) {
-            return res.status(400).json({ message: "Photo URL is required to delete." });
+            return res.status(400).json({ message: "Photo URL is required" });
         }
 
         const hospital = await Hospital.findByIdAndUpdate(
@@ -47,23 +54,6 @@ router.delete("/hospital-photo", auth, async (req, res) => {
 
         res.json({ message: "Photo removed successfully!", photos: hospital.photos });
     } catch (error) {
-        console.error("Delete Error:", error);
         res.status(500).json({ error: error.message });
     }
-});
-
-router.get("/hospital-photo", auth, async (req, res) => {
-    try {
-        const userObj = req.user || req.hospital;
-        const hospitalId = userObj.id || userObj._id;
-
-        const hospital = await Hospital.findById(hospitalId);
-        
-        res.json({ photos: hospital.photos || [] });
-    } catch (error) {
-        console.error("Fetch Photos Error:", error);
-        res.status(500).json({ error: error.message });
-    }
-});
-
-module.exports = router;
+};

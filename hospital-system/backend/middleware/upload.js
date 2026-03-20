@@ -11,7 +11,7 @@ cloudinary.config({
 const storage = new CloudinaryStorage({
     cloudinary: cloudinary,
     params: {
-    folder: "hospital_gallery", // A folder will be created in your Cloudinary account
+    folder: "hospital_gallery",
     allowed_formats: ["jpg", "png", "jpeg", "webp"],
     },
 });

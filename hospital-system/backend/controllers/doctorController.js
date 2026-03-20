@@ -1,12 +1,11 @@
 const Doctor = require("../models/Doctor");
 
-// --- For Hospital Dashboard: Add a Doctor ---
 exports.addDoctor = async (req, res) => {
     try {
         const { name, specialization, experience, consultationFee } = req.body;
 
         const doctor = await Doctor.create({
-            hospital: req.user.id, // ID from Auth Token
+            hospital: req.user.id,
             name,
             specialization,
             experience,
@@ -19,7 +18,6 @@ exports.addDoctor = async (req, res) => {
     }
 };
 
-// --- For Hospital Dashboard: Get own doctors ---
 exports.getDoctors = async (req, res) => {
     try {
         const doctors = await Doctor.find({ hospital: req.user.id });
@@ -29,7 +27,6 @@ exports.getDoctors = async (req, res) => {
     }
 };
 
-// --- For Hospital Dashboard: Remove a Doctor ---
 exports.deleteDoctor = async (req, res) => {
     try {
         const doctorId = req.params.id;
@@ -40,7 +37,6 @@ exports.deleteDoctor = async (req, res) => {
     }
 };
 
-// --- NEW: For Patients: Get Doctors of a specific hospital by ID ---
 exports.getDoctorsByHospitalId = async (req, res) => {
     try {
         const { hospitalId } = req.params;
