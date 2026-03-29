@@ -14,7 +14,7 @@ const HospitalLogin = () => {
         const res = await API.post("/hospital/login", { email, password });
         
         localStorage.setItem("token", res.data.token);
-      localStorage.setItem("role", "hospital"); // Crucial for ProtectedRoute
+        localStorage.setItem("role", "hospital");
 
         alert("Login Successful");
         navigate("/dashboard");

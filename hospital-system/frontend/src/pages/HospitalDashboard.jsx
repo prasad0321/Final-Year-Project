@@ -10,7 +10,6 @@ const HospitalDashboard = () => {
   const [activeTab, setActiveTab] = useState("queue"); 
   const token = localStorage.getItem("token");
 
-  // --- MODAL STATES ---
   const [showDoctorModal, setShowDoctorModal] = useState(false);
   const [doctorForm, setDoctorForm] = useState({ name: "", specialization: "", experience: "", consultationFee: "" });
 
@@ -19,14 +18,14 @@ const HospitalDashboard = () => {
   const [resourceForm, setResourceForm] = useState({ ...resources });
 
   const [showWalkInModal, setShowWalkInModal] = useState(false);
-  const [walkInForm, setWalkInForm] = useState({ patientName: "", mobile: "", doctorId: "", emergency: false });
+  const [walkInForm, setWalkInForm] = useState({ patientName: "", mobile: "", age: "", gender: "Male", symptoms: "", doctorId: "", emergency: false });
 
-  // --- NEW GALLERY STATES ---
   const [photos, setPhotos] = useState([]);
   const [imageFile, setImageFile] = useState(null);
   const [uploading, setUploading] = useState(false);
 
-  // --- FETCH DATA ---
+  const [selectedPatient, setSelectedPatient] = useState(null);
+
   const fetchQueue = async () => {
     try {
       const res = await API.get("/appointment/queue", { headers: { Authorization: `Bearer ${token}` } });
@@ -53,21 +52,16 @@ const HospitalDashboard = () => {
       const res = await API.get("/hospital/resources", { headers: { Authorization: `Bearer ${token}` } });
       if (res.data) {
         setResources(res.data);
-        // If your backend sends photos attached to the hospital/resources object, grab them!
         if (res.data.photos) setPhotos(res.data.photos); 
       }
     } catch (err) { console.log(err); }
   };
 
-const fetchPhotos = async () => {
+  const fetchPhotos = async () => {
     try {
-      const res = await API.get("/upload/hospital-photo", { 
-        headers: { Authorization: `Bearer ${token}` } 
-      });
+      const res = await API.get("/upload/hospital-photo", { headers: { Authorization: `Bearer ${token}` } });
       setPhotos(res.data.photos || []);
-    } catch (err) { 
-      console.log("Failed to fetch photos:", err); 
-    }
+    } catch (err) { console.log(err); }
   };
 
   useEffect(() => {
@@ -85,14 +79,15 @@ const fetchPhotos = async () => {
     return () => socket.disconnect();
   }, []);
 
-  // --- ACTIONS ---
-  const handleComplete = async (id) => {
+  const handleComplete = async (id, e) => {
+    e.stopPropagation();
     try {
       await API.put(`/appointment/complete/${id}`, {}, { headers: { Authorization: `Bearer ${token}` } });
     } catch (err) { console.log(err); }
   };
 
-  const handleCancel = async (id) => {
+  const handleCancel = async (id, e) => {
+    e.stopPropagation();
     try {
       await API.put(`/appointment/cancel/${id}`, {}, { headers: { Authorization: `Bearer ${token}` } });
     } catch (err) { console.log(err); }
@@ -103,7 +98,7 @@ const fetchPhotos = async () => {
     try {
       await API.post("/appointment/hospital-book", walkInForm, { headers: { Authorization: `Bearer ${token}` } });
       setShowWalkInModal(false);
-      setWalkInForm({ patientName: "", mobile: "", doctorId: "", emergency: false });
+      setWalkInForm({ patientName: "", mobile: "", age: "", gender: "Male", symptoms: "", doctorId: "", emergency: false });
       alert("Walk-in Appointment Booked!");
     } catch (err) { alert("Failed to book: " + (err.response?.data?.error || err.message)); }
   };
@@ -138,52 +133,33 @@ const fetchPhotos = async () => {
     } catch (err) { alert("Failed to update resources"); }
   };
 
-// --- REMOVE PHOTO ACTION ---
   const handleDeletePhoto = async (photoUrl) => {
     if (!window.confirm("⚠️ Are you sure you want to permanently remove this photo?")) return;
-    
     try {
-      // Axios requires 'data' when sending a body in a DELETE request
       const res = await API.delete("/upload/hospital-photo", {
         headers: { Authorization: `Bearer ${token}` },
         data: { photoUrl: photoUrl } 
       });
-      
-      setPhotos(res.data.photos); // Instantly updates the grid to remove the photo!
+      setPhotos(res.data.photos);
       alert("Photo removed successfully!");
-    } catch (err) {
-      alert("Failed to remove photo.");
-      console.log(err);
-    }
+    } catch (err) { alert("Failed to remove photo."); }
   };
 
-  // --- NEW: UPLOAD PHOTO ACTION ---
   const handlePhotoUpload = async (e) => {
     e.preventDefault();
     if (!imageFile) return alert("Please select an image to upload.");
-
     const formData = new FormData();
-    formData.append("image", imageFile); // "image" matches the upload.single("image") in backend
-
+    formData.append("image", imageFile);
     setUploading(true);
     try {
-      // Send as multipart/form-data so the backend knows it's a file!
       const res = await API.post("/upload/hospital-photo", formData, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "multipart/form-data"
-        }
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "multipart/form-data" }
       });
-      setPhotos(res.data.photos); // Update the gallery with the new array of photos
-      setImageFile(null); // Clear the file input
+      setPhotos(res.data.photos);
+      setImageFile(null);
       alert("Photo successfully added to your gallery!");
-    } catch (err) {
-      // This will now show the EXACT error coming from the backend!
-      alert("Upload Error: " + (err.response?.data?.error || err.response?.data?.message || err.message));
-      console.log(err);
-    } finally {
-      setUploading(false);
-    }
+    } catch (err) { alert("Upload Error"); } 
+    finally { setUploading(false); }
   };
 
   return (
@@ -191,7 +167,6 @@ const fetchPhotos = async () => {
       <Navbar />
       <div style={{ padding: "30px", backgroundColor: "#f0f2f5", minHeight: "90vh", position: "relative" }}>
         
-        {/* --- DASHBOARD HEADER --- */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
           <h2 style={{ color: "#333", margin: 0 }}>Command Center</h2>
           <div style={{ display: "flex", gap: "15px" }}>
@@ -201,16 +176,14 @@ const fetchPhotos = async () => {
           </div>
         </div>
 
-        {/* --- TAB NAVIGATION --- */}
         <div style={{ display: "flex", gap: "10px", marginBottom: "20px", borderBottom: "2px solid #ddd", paddingBottom: "10px", overflowX: "auto" }}>
           <TabButton active={activeTab === "queue"} onClick={() => setActiveTab("queue")} label="📋 Live Queue" />
           <TabButton active={activeTab === "history"} onClick={() => setActiveTab("history")} label="✅ History" /> 
           <TabButton active={activeTab === "doctors"} onClick={() => setActiveTab("doctors")} label="👨‍⚕️ Doctors" />
           <TabButton active={activeTab === "resources"} onClick={() => setActiveTab("resources")} label="🛏️ Resources" />
-          <TabButton active={activeTab === "gallery"} onClick={() => setActiveTab("gallery")} label="📸 Gallery" /> {/* <-- NEW TAB */}
+          <TabButton active={activeTab === "gallery"} onClick={() => setActiveTab("gallery")} label="📸 Gallery" />
         </div>
 
-        {/* --- TAB 1: LIVE QUEUE --- */}
         {activeTab === "queue" && (
           <div style={cardStyle}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
@@ -220,15 +193,21 @@ const fetchPhotos = async () => {
             {queue.length === 0 ? <p>No patients currently waiting.</p> : (
               <div style={{ display: "grid", gap: "15px" }}>
                 {queue.map((item) => (
-                  <div key={item._id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "15px", border: "1px solid #eee", borderRadius: "8px", backgroundColor: item.emergency ? "#fff1f1" : "white" }}>
+                  <div 
+                    key={item._id} 
+                    onClick={() => setSelectedPatient(item)}
+                    style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "15px", border: "1px solid #eee", borderRadius: "8px", backgroundColor: item.emergency ? "#fff1f1" : "white", cursor: "pointer", transition: "0.2s" }}
+                    onMouseOver={(e) => e.currentTarget.style.boxShadow = "0 4px 10px rgba(0,0,0,0.1)"}
+                    onMouseOut={(e) => e.currentTarget.style.boxShadow = "none"}
+                  >
                     <div>
-                      {item.emergency && <span style={{ color: "red", fontWeight: "bold", fontSize: "12px" }}>🚨 EMERGENCY</span>}
-                      <h4 style={{ margin: "5px 0", color: "#2c6bed" }}>Queue #{item.queueNumber}</h4>
-                      <p style={{ margin: 0 }}><strong>Patient:</strong> {item.patient?.name} | <strong>Doctor:</strong> {item.doctor?.name}</p>
+                      {item.emergency && <span style={{ color: "red", fontWeight: "bold", fontSize: "12px", display: "block", marginBottom: "5px" }}>🚨 EMERGENCY</span>}
+                      <h4 style={{ margin: "0 0 5px 0", color: "#2c6bed" }}>Queue #{item.queueNumber}</h4>
+                      <p style={{ margin: 0 }}><strong>Patient:</strong> {item.patientName || item.patient?.name} | <strong>Doctor:</strong> {item.doctor?.name}</p>
                     </div>
                     <div>
-                      <button onClick={() => handleComplete(item._id)} style={btnSuccess}>Complete</button>
-                      <button onClick={() => handleCancel(item._id)} style={btnDanger}>Cancel</button>
+                      <button onClick={(e) => handleComplete(item._id, e)} style={btnSuccess}>Complete</button>
+                      <button onClick={(e) => handleCancel(item._id, e)} style={btnDanger}>Cancel</button>
                     </div>
                   </div>
                 ))}
@@ -237,7 +216,6 @@ const fetchPhotos = async () => {
           </div>
         )}
 
-        {/* --- TAB 2: HISTORY --- */}
         {activeTab === "history" && (
           <div style={cardStyle}>
             <div style={{ marginBottom: "20px" }}>
@@ -247,9 +225,13 @@ const fetchPhotos = async () => {
             {history.length === 0 ? <p>No completed appointments yet.</p> : (
               <div style={{ display: "grid", gap: "15px" }}>
                 {history.map((item) => (
-                  <div key={item._id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "15px", border: "1px solid #e0e0e0", borderRadius: "8px", backgroundColor: "#f9fcf9" }}>
+                  <div 
+                    key={item._id} 
+                    onClick={() => setSelectedPatient(item)}
+                    style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "15px", border: "1px solid #e0e0e0", borderRadius: "8px", backgroundColor: "#f9fcf9", cursor: "pointer" }}
+                  >
                     <div>
-                      <h4 style={{ margin: "0 0 5px 0", color: "#333" }}>{item.patient?.name}</h4>
+                      <h4 style={{ margin: "0 0 5px 0", color: "#333" }}>{item.patientName || item.patient?.name}</h4>
                       <p style={{ margin: 0, fontSize: "14px", color: "#555" }}>
                         Treated by: <strong>{item.doctor?.name}</strong>
                       </p>
@@ -265,7 +247,6 @@ const fetchPhotos = async () => {
           </div>
         )}
 
-        {/* --- TAB 3: DOCTORS --- */}
         {activeTab === "doctors" && (
           <div style={cardStyle}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
@@ -303,7 +284,6 @@ const fetchPhotos = async () => {
           </div>
         )}
 
-        {/* --- TAB 4: RESOURCES --- */}
         {activeTab === "resources" && (
           <div style={cardStyle}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
@@ -319,7 +299,6 @@ const fetchPhotos = async () => {
           </div>
         )}
 
-        {/* --- TAB 5: GALLERY (NEW!) --- */}
         {activeTab === "gallery" && (
           <div style={cardStyle}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px", borderBottom: "2px solid #eee", paddingBottom: "15px" }}>
@@ -327,23 +306,11 @@ const fetchPhotos = async () => {
                 <h3 style={{ margin: 0 }}>Hospital Photo Gallery</h3>
                 <p style={{ margin: "5px 0 0 0", color: "#666", fontSize: "14px" }}>These photos will be displayed on the Patient Mobile App.</p>
               </div>
-              
-              {/* UPLOAD FORM */}
               <form onSubmit={handlePhotoUpload} style={{ display: "flex", gap: "10px", alignItems: "center" }}>
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={(e) => setImageFile(e.target.files[0])}
-                  style={{ border: "1px solid #ccc", padding: "8px", borderRadius: "5px", backgroundColor: "#f9f9f9" }}
-                />
-                <button type="submit" style={btnPrimary} disabled={uploading}>
-                  {uploading ? "⏳ Uploading..." : "⬆️ Upload Photo"}
-                </button>
+                <input type="file" accept="image/*" onChange={(e) => setImageFile(e.target.files[0])} style={{ border: "1px solid #ccc", padding: "8px", borderRadius: "5px", backgroundColor: "#f9f9f9" }} />
+                <button type="submit" style={btnPrimary} disabled={uploading}>{uploading ? "⏳ Uploading..." : "⬆️ Upload Photo"}</button>
               </form>
             </div>
-
-            {/* PHOTO GRID */}
-            {/* PHOTO GRID */}
             {(!photos || photos.length === 0) ? (
               <div style={{ textAlign: "center", padding: "40px", color: "#888", backgroundColor: "#f9fcf9", borderRadius: "8px", border: "1px dashed #ccc" }}>
                 <span style={{ fontSize: "40px" }}>📷</span>
@@ -351,61 +318,97 @@ const fetchPhotos = async () => {
               </div>
             ) : (
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(250px, 1fr))", gap: "20px" }}>
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(250px, 1fr))", gap: "20px" }}>
                 {photos?.map((url, index) => (
                   <div key={index} style={{ position: "relative", borderRadius: "10px", overflow: "hidden", boxShadow: "0 4px 10px rgba(0,0,0,0.1)", border: "1px solid #eee", aspectRatio: "4/3" }}>
-                    
-                    {/* The Image */}
                     <img src={url} alt={`Hospital view ${index + 1}`} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                    
-                    {/* The Floating Delete Button */}
-                    <button 
-                      onClick={() => handleDeletePhoto(url)}
-                      style={{ 
-                        position: "absolute", top: "10px", right: "10px", 
-                        backgroundColor: "rgba(211, 47, 47, 0.9)", color: "white", 
-                        border: "none", borderRadius: "50%", width: "30px", height: "30px", 
-                        cursor: "pointer", display: "flex", justifyContent: "center", alignItems: "center", 
-                        fontSize: "12px", boxShadow: "0 2px 5px rgba(0,0,0,0.3)", transition: "0.2s"
-                      }}
-                      title="Remove Photo"
-                    >
-                      ❌
-                    </button>
-                    
+                    <button onClick={() => handleDeletePhoto(url)} style={{ position: "absolute", top: "10px", right: "10px", backgroundColor: "rgba(211, 47, 47, 0.9)", color: "white", border: "none", borderRadius: "50%", width: "30px", height: "30px", cursor: "pointer", display: "flex", justifyContent: "center", alignItems: "center", fontSize: "12px", boxShadow: "0 2px 5px rgba(0,0,0,0.3)", transition: "0.2s" }} title="Remove Photo">❌</button>
                   </div>
                 ))}
-              </div>
               </div>
             )}
           </div>
         )}
-
       </div>
 
-      {/* --- MODALS (Unchanged) --- */}
       {showWalkInModal && (
         <div style={modalOverlayStyle}>
-          <div style={modalContentStyle}>
-            <h3 style={{ marginTop: 0 }}>Book Walk-in Patient</h3>
+          <div style={{...modalContentStyle, width: "500px", maxHeight: "90vh", overflowY: "auto"}}>
+            <h3 style={{ marginTop: 0, borderBottom: "2px solid #eee", paddingBottom: "10px" }}>Book Walk-in Patient</h3>
             <form onSubmit={handleWalkInBook}>
-              <label style={labelStyle}>Patient Name</label>
-              <input type="text" required style={inputStyle} value={walkInForm.patientName} onChange={(e) => setWalkInForm({...walkInForm, patientName: e.target.value})} />
-              <label style={labelStyle}>Mobile Number</label>
-              <input type="text" required style={inputStyle} value={walkInForm.mobile} onChange={(e) => setWalkInForm({...walkInForm, mobile: e.target.value})} />
+              <div style={{ display: "flex", gap: "10px" }}>
+                <div style={{ flex: 1 }}>
+                  <label style={labelStyle}>Patient Name</label>
+                  <input type="text" required style={inputStyle} value={walkInForm.patientName} onChange={(e) => setWalkInForm({...walkInForm, patientName: e.target.value})} />
+                </div>
+                <div style={{ width: "100px" }}>
+                  <label style={labelStyle}>Age</label>
+                  <input type="number" required style={inputStyle} value={walkInForm.age} onChange={(e) => setWalkInForm({...walkInForm, age: e.target.value})} />
+                </div>
+              </div>
+              
+              <div style={{ display: "flex", gap: "10px" }}>
+                <div style={{ flex: 1 }}>
+                  <label style={labelStyle}>Mobile Number</label>
+                  <input type="text" required style={inputStyle} value={walkInForm.mobile} onChange={(e) => setWalkInForm({...walkInForm, mobile: e.target.value})} />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <label style={labelStyle}>Gender</label>
+                  <select required style={inputStyle} value={walkInForm.gender} onChange={(e) => setWalkInForm({...walkInForm, gender: e.target.value})}>
+                    <option value="Male">Male</option>
+                    <option value="Female">Female</option>
+                    <option value="Other">Other</option>
+                  </select>
+                </div>
+              </div>
+
+              <label style={labelStyle}>Symptoms</label>
+              <textarea required rows="3" style={{...inputStyle, resize: "none"}} placeholder="Briefly describe the symptoms..." value={walkInForm.symptoms} onChange={(e) => setWalkInForm({...walkInForm, symptoms: e.target.value})}></textarea>
+
               <label style={labelStyle}>Assign Doctor</label>
               <select required style={inputStyle} value={walkInForm.doctorId} onChange={(e) => setWalkInForm({...walkInForm, doctorId: e.target.value})}>
                 <option value="">-- Select Doctor --</option>
                 {doctors.map(doc => <option key={doc._id} value={doc._id}>{doc.name}</option>)}
               </select>
+              
               <label style={{ display: "flex", alignItems: "center", gap: "10px", marginTop: "10px", marginBottom: "20px", fontWeight: "bold", color: "#d32f2f" }}>
-                <input type="checkbox" checked={walkInForm.emergency} onChange={(e) => setWalkInForm({...walkInForm, emergency: e.target.checked})} /> 🚨 Mark Emergency
+                <input type="checkbox" checked={walkInForm.emergency} onChange={(e) => setWalkInForm({...walkInForm, emergency: e.target.checked})} /> 🚨 Mark as Emergency
               </label>
+              
               <div style={{ display: "flex", gap: "10px" }}>
                 <button type="submit" style={{ ...btnSuccess, width: "100%" }}>Book Patient</button>
                 <button type="button" onClick={() => setShowWalkInModal(false)} style={{ ...btnDanger, width: "100%" }}>Cancel</button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {selectedPatient && (
+        <div style={modalOverlayStyle} onClick={() => setSelectedPatient(null)}>
+          <div style={{...modalContentStyle, position: "relative", width: "450px"}} onClick={(e) => e.stopPropagation()}>
+            <button onClick={() => setSelectedPatient(null)} style={{ position: "absolute", top: "15px", right: "15px", background: "none", border: "none", fontSize: "20px", cursor: "pointer", color: "#888" }}>✖</button>
+            <h2 style={{ marginTop: 0, color: "#2c6bed", borderBottom: "2px solid #eee", paddingBottom: "10px" }}>Patient Details</h2>
+            
+            <div style={{ display: "flex", flexDirection: "column", gap: "12px", marginTop: "20px", fontSize: "15px" }}>
+              <p style={{ margin: 0 }}><strong>Name:</strong> {selectedPatient.patientName || selectedPatient.patient?.name}</p>
+              <p style={{ margin: 0 }}><strong>Queue Number:</strong> #{selectedPatient.queueNumber}</p>
+              <p style={{ margin: 0 }}><strong>Status:</strong> <span style={{ color: selectedPatient.status === "Completed" ? "green" : "orange", fontWeight: "bold" }}>{selectedPatient.status}</span></p>
+              <p style={{ margin: 0 }}><strong>Assigned Doctor:</strong> {selectedPatient.doctor?.name}</p>
+              
+              <hr style={{ border: "none", borderTop: "1px dashed #ccc", width: "100%", margin: "10px 0" }} />
+              
+              <p style={{ margin: 0 }}><strong>Mobile:</strong> {selectedPatient.mobile || "N/A"}</p>
+              <p style={{ margin: 0 }}><strong>Age:</strong> {selectedPatient.age ? `${selectedPatient.age} Years` : "N/A"}</p>
+              <p style={{ margin: 0 }}><strong>Gender:</strong> {selectedPatient.gender || "N/A"}</p>
+              <div style={{ backgroundColor: "#f9f9f9", padding: "10px", borderRadius: "5px", border: "1px solid #eee", marginTop: "5px" }}>
+                <p style={{ margin: 0, fontWeight: "bold", color: "#555", marginBottom: "5px" }}>Symptoms:</p>
+                <p style={{ margin: 0, color: "#333" }}>{selectedPatient.symptoms || "No symptoms recorded."}</p>
+              </div>
+            </div>
+
+            <div style={{ marginTop: "25px", textAlign: "right" }}>
+              <button onClick={() => setSelectedPatient(null)} style={{...btnPrimary, backgroundColor: "#555"}}>Close</button>
+            </div>
           </div>
         </div>
       )}
@@ -453,7 +456,6 @@ const fetchPhotos = async () => {
   );
 };
 
-// --- STYLES & COMPONENTS ---
 const StatBadge = ({ label, value, color }) => (
   <div style={{ backgroundColor: "white", borderLeft: `5px solid ${color}`, padding: "10px 20px", borderRadius: "5px", boxShadow: "0 2px 5px rgba(0,0,0,0.05)" }}>
     <p style={{ margin: 0, fontSize: "12px", color: "#666" }}>{label}</p>
@@ -480,11 +482,9 @@ const thStyle = { padding: "15px", borderBottom: "2px solid #eee", color: "#555"
 const tdStyle = { padding: "15px", color: "#333" };
 const inputStyle = { width: "100%", padding: "10px", marginBottom: "15px", borderRadius: "5px", border: "1px solid #ccc", boxSizing: "border-box" };
 const labelStyle = { fontSize: "12px", fontWeight: "bold", color: "#555", display: "block", marginBottom: "5px" };
-
 const btnSuccess = { backgroundColor: "#2e7d32", color: "white", padding: "10px 15px", border: "none", borderRadius: "5px", cursor: "pointer", marginRight: "10px" };
 const btnDanger = { backgroundColor: "#d32f2f", color: "white", padding: "10px 15px", border: "none", borderRadius: "5px", cursor: "pointer" };
 const btnPrimary = { backgroundColor: "#2c6bed", color: "white", padding: "10px 20px", border: "none", borderRadius: "5px", cursor: "pointer", fontWeight: "bold" };
-
 const modalOverlayStyle = { position: "fixed", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "rgba(0,0,0,0.6)", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 1000 };
 const modalContentStyle = { backgroundColor: "white", padding: "30px", borderRadius: "10px", width: "400px", boxShadow: "0 4px 15px rgba(0,0,0,0.2)" };
 

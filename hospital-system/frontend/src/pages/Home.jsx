@@ -47,14 +47,12 @@ const Home = () => {
         </div>
 
         <div style={cardContainer}>
-        {/* Admin Card */}
         <div style={cardStyle} onClick={() => navigate("/admin-login")}>
             <div style={{ fontSize: "50px" }}>🛡️</div>
             <h3 style={{ color: "#2c6bed" }}>Admin Portal</h3>
             <p style={{ color: "#666" }}>Manage Hospitals & Staff</p>
         </div>
 
-        {/* Hospital Card */}
         <div style={cardStyle} onClick={() => navigate("/hospital-login")}>
             <div style={{ fontSize: "50px" }}>🏥</div>
             <h3 style={{ color: "#2c6bed" }}>Hospital Portal</h3>

@@ -13,7 +13,7 @@ const AdminLogin = () => {
       const res = await API.post("/admin/login", { email, password });
       localStorage.setItem("adminToken", res.data.token);
       alert("Welcome to Admin control panel.");
-      navigate("/admin"); // Redirect to the dashboard
+      navigate("/admin");
     } catch (err) {
       alert(err.response?.data?.message || "Login failed");
     }
@@ -48,7 +48,6 @@ const AdminLogin = () => {
   );
 };
 
-// --- STYLES ---
 const inputStyle = { width: "100%", padding: "12px", marginBottom: "15px", borderRadius: "5px", border: "1px solid #ccc", boxSizing: "border-box" };
 const btnPrimary = { width: "100%", backgroundColor: "#1a1a2e", color: "white", padding: "12px 20px", border: "none", borderRadius: "5px", cursor: "pointer", fontWeight: "bold", marginTop: "10px" };
 

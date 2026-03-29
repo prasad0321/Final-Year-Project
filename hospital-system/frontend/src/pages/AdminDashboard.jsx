@@ -48,8 +48,6 @@ const AdminDashboard = () => {
     }
   };
 
-  
-    // Add 'async' right here! 👇
   const handleViewHospital = async (id, name) => {
     console.log("Trying to impersonate Hospital ID:", id); 
     try {
@@ -59,19 +57,13 @@ const AdminDashboard = () => {
         headers: { Authorization: `Bearer ${adminToken}` } 
       });
 
-      // ... rest of the code
-
-      // Save it as the regular "token" (This is what HospitalDashboard looks for!)
       localStorage.setItem("token", res.data.token);
       
       alert(`Accessing ${name}'s Command Center...`);
       
-      // Teleport the admin to the hospital dashboard!
-      // NOTE: Change "/dashboard" if your hospital route is named something else!
       navigate("/dashboard"); 
       
     }  catch (err) {
-      // This will now show the EXACT error coming from the backend!
       alert("Error: " + (err.response?.data?.error || err.response?.data?.message || err.message));
       console.log(err);
     }
@@ -79,14 +71,12 @@ const AdminDashboard = () => {
 
   return (
     <div style={{ backgroundColor: "#f4f6f9", minHeight: "100vh" }}>
-      {/* Admin Navbar */}
       <div style={{ backgroundColor: "#1a1a2e", padding: "15px 30px", display: "flex", justifyContent: "space-between", alignItems: "center", color: "white" }}>
         <h2 style={{ margin: 0 }}>🛡️Admin Control Panel</h2>
         <button onClick={handleLogout} style={btnDanger}>Logout</button>
       </div>
 
       <div style={{ padding: "30px" }}>
-        {/* Stats */}
         <div style={{ display: "flex", gap: "20px", marginBottom: "30px" }}>
           <div style={statCardStyle}>
             <h3 style={{ margin: 0, color: "#1a1a2e", fontSize: "36px" }}>{hospitals.length}</h3>
@@ -98,7 +88,6 @@ const AdminDashboard = () => {
           </div>
         </div>
 
-        {/* Hospital Management Table */}
         <div style={{ backgroundColor: "white", padding: "25px", borderRadius: "10px", boxShadow: "0 4px 15px rgba(0,0,0,0.05)" }}>
           <h3 style={{ marginTop: 0, borderBottom: "2px solid #eee", paddingBottom: "15px" }}>Hospital Management Directory</h3>
           
@@ -117,7 +106,6 @@ const AdminDashboard = () => {
               ) : (
                 hospitals.map(hospital => (
                   <tr key={hospital._id} style={{ borderBottom: "1px solid #eee" }}>
-                   {/* Replace the existing Hospital Name <td> with this: */}
                     <td 
                       style={{ ...tdStyle, color: "#2c6bed", cursor: "pointer", textDecoration: "underline" }} 
                       onClick={() => handleViewHospital(hospital._id, hospital.name)}
@@ -142,7 +130,6 @@ const AdminDashboard = () => {
   );
 };
 
-// --- STYLES ---
 const btnDanger = { backgroundColor: "#d32f2f", color: "white", padding: "8px 15px", border: "none", borderRadius: "5px", cursor: "pointer", fontWeight: "bold" };
 const statCardStyle = { backgroundColor: "white", padding: "20px 30px", borderRadius: "8px", boxShadow: "0 2px 10px rgba(0,0,0,0.05)", minWidth: "200px" };
 const thStyle = { padding: "15px", borderBottom: "2px solid #ddd", color: "#444" };
