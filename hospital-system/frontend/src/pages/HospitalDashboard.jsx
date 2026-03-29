@@ -83,6 +83,9 @@ const HospitalDashboard = () => {
     e.stopPropagation();
     try {
       await API.put(`/appointment/complete/${id}`, {}, { headers: { Authorization: `Bearer ${token}` } });
+      // INSTANT REFRESH TRIGGERED HERE
+      fetchQueue();
+      fetchHistory();
     } catch (err) { console.log(err); }
   };
 
@@ -90,6 +93,9 @@ const HospitalDashboard = () => {
     e.stopPropagation();
     try {
       await API.put(`/appointment/cancel/${id}`, {}, { headers: { Authorization: `Bearer ${token}` } });
+      // INSTANT REFRESH TRIGGERED HERE
+      fetchQueue();
+      fetchHistory();
     } catch (err) { console.log(err); }
   };
 
@@ -100,6 +106,8 @@ const HospitalDashboard = () => {
       setShowWalkInModal(false);
       setWalkInForm({ patientName: "", mobile: "", age: "", gender: "Male", symptoms: "", doctorId: "", emergency: false });
       alert("Walk-in Appointment Booked!");
+      // INSTANT REFRESH TRIGGERED HERE
+      fetchQueue(); 
     } catch (err) { alert("Failed to book: " + (err.response?.data?.error || err.message)); }
   };
 
