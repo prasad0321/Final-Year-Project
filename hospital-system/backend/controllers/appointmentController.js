@@ -3,7 +3,18 @@ const Patient = require("../models/Patient");
 
 exports.bookAppointment = async (req, res) => {
     try {
-        const { hospitalId, doctorId, appointmentDate, emergency } = req.body;
+        // 1. ADDED the missing fields to the extraction here!
+        const { 
+            hospitalId, 
+            doctorId, 
+            appointmentDate, 
+            emergency,
+            patientName, 
+            mobile, 
+            age, 
+            gender, 
+            symptoms 
+        } = req.body;
 
         const today = new Date(appointmentDate);
         today.setHours(0, 0, 0, 0);
@@ -33,7 +44,12 @@ exports.bookAppointment = async (req, res) => {
             appointmentDate,
             queueNumber,
             status: "Pending",
-            emergency: emergency || false
+            emergency: emergency || false,
+            patientName,
+            mobile,
+            age,
+            gender,
+            symptoms
         });
 
         const io = req.app.get("io");
