@@ -8,13 +8,14 @@ const {
     completeAppointment,
     cancelAppointment,
     getCompletedAppointments,
-    hospitalBookAppointment
+    hospitalBookAppointment,
+    getMyAppointments 
 } = require("../controllers/appointmentController");
 
 const auth = require("../middleware/authMiddleware");
 
 router.post("/book", auth, bookAppointment);
-
+router.get("/my-appointments", auth, getMyAppointments);
 router.get("/queue", auth, hospitalOnly, getHospitalQueue);
 router.put("/complete/:id", auth, hospitalOnly, completeAppointment);
 router.get("/completed", auth, hospitalOnly, getCompletedAppointments);
