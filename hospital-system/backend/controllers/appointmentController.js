@@ -3,38 +3,27 @@ const Patient = require("../models/Patient");
 
 exports.bookAppointment = async (req, res) => {
     try {
-        const { 
-            hospitalId, 
-            doctorId, 
-            appointmentDate, 
-            emergency,
-            patientName, 
-            mobile, 
-            age, 
-            gender, 
-            symptoms 
-        } = req.body;
+        const { hospitalId, doctorId, appointmentDate, emergency, patientName, mobile, age, gender, symptoms } = req.body;
+
+        // Phone Validation
+        const phoneRegex = /^[0-9]{10}$/;
+        if (!phoneRegex.test(mobile)) {
+            return res.status(400).json({ error: "Please enter a valid 10-digit mobile number." });
+        }
 
         const today = new Date(appointmentDate);
         today.setHours(0, 0, 0, 0);
         const tomorrow = new Date(today);
         tomorrow.setDate(tomorrow.getDate() + 1);
 
-        let queueNumber;
-
-        if (emergency) {
-            await Appointment.updateMany(
-                { doctor: doctorId, appointmentDate: { $gte: today, $lt: tomorrow } },
-                { $inc: { queueNumber: 1 } }
-            );
-            queueNumber = 1;
-        } else {
-            const count = await Appointment.countDocuments({
-                doctor: doctorId,
-                appointmentDate: { $gte: today, $lt: tomorrow }
-            });
-            queueNumber = count + 1;
-        }
+        // Count only patients of the same type (Emergency vs Regular) to keep queues separate
+        const count = await Appointment.countDocuments({
+            doctor: doctorId,
+            appointmentDate: { $gte: today, $lt: tomorrow },
+            emergency: emergency || false
+        });
+        
+        const queueNumber = count + 1;
 
         const appointment = await Appointment.create({
             patient: req.user.id,
@@ -97,12 +86,14 @@ exports.completeAppointment = async (req, res) => {
         const tomorrow = new Date(today);
         tomorrow.setDate(tomorrow.getDate() + 1);
 
+        // Only shift the queue numbers of the same patient type
         await Appointment.updateMany(
             {
                 doctor: appointment.doctor,
                 appointmentDate: { $gte: today, $lt: tomorrow },
                 queueNumber: { $gt: appointment.queueNumber },
-                status: "Pending"
+                status: "Pending",
+                emergency: appointment.emergency 
             },
             { $inc: { queueNumber: -1 } }
         );
@@ -148,12 +139,14 @@ exports.cancelAppointment = async (req, res) => {
         const tomorrow = new Date(today);
         tomorrow.setDate(tomorrow.getDate() + 1);
 
+        // Only shift the queue numbers of the same patient type
         await Appointment.updateMany(
             {
                 doctor: appointment.doctor,
                 appointmentDate: { $gte: today, $lt: tomorrow },
                 queueNumber: { $gt: appointment.queueNumber },
-                status: "Pending"
+                status: "Pending",
+                emergency: appointment.emergency
             },
             { $inc: { queueNumber: -1 } }
         );
@@ -166,22 +159,17 @@ exports.cancelAppointment = async (req, res) => {
         res.status(500).json({ error: error.message });
     }
 };
-exports.getMyAppointments = async (req, res) => {
-    try {
-        const appointments = await Appointment.find({ patient: req.user.id })
-            .populate("hospital", "name")
-            .populate("doctor", "name")
-            .sort({ appointmentDate: -1 });
-        res.json(appointments);
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
-};
 
 exports.hospitalBookAppointment = async (req, res) => {
     try {
         const { patientName, doctorId, emergency, mobile, age, gender, symptoms } = req.body;
         
+        // Phone Validation
+        const phoneRegex = /^[0-9]{10}$/;
+        if (!phoneRegex.test(mobile)) {
+            return res.status(400).json({ error: "Please enter a valid 10-digit mobile number." });
+        }
+
         const userObj = req.user || req.hospital;
         const hospitalId = userObj.id || userObj._id;
 
@@ -198,13 +186,14 @@ exports.hospitalBookAppointment = async (req, res) => {
         const tomorrow = new Date(today);
         tomorrow.setDate(tomorrow.getDate() + 1);
 
-        const lastAppt = await Appointment.findOne({ 
-            hospital: hospitalId, 
-            status: "Pending",
-            appointmentDate: { $gte: today, $lt: tomorrow }
-        }).sort({ queueNumber: -1 });
-
-        const queueNumber = lastAppt ? lastAppt.queueNumber + 1 : 1;
+        // Count only patients of the same type (Emergency vs Regular) to keep queues separate
+        const count = await Appointment.countDocuments({
+            doctor: doctorId,
+            appointmentDate: { $gte: today, $lt: tomorrow },
+            emergency: emergency || false
+        });
+        
+        const queueNumber = count + 1;
 
         const newAppointment = new Appointment({
             patient: walkInPatient._id,
