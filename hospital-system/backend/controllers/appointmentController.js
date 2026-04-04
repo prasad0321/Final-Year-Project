@@ -17,7 +17,6 @@ exports.bookAppointment = async (req, res) => {
 
         const isEmergency = emergency === true || emergency === "true";
 
-        // --- BULLETPROOF COUNTING METHOD ---
         const pendingCount = await Appointment.countDocuments({ 
             doctor: doctorId, 
             status: "Pending",
@@ -25,8 +24,19 @@ exports.bookAppointment = async (req, res) => {
             emergency: isEmergency 
         }); 
 
-        const queueNumber = pendingCount + 1;
-        // -----------------------------------
+        let queueNumber = 1;
+
+        if (pendingCount > 0) {
+            // FIX: Added status: "Pending" here so it ignores old completed tests!
+            const highestAppt = await Appointment.findOne({
+                doctor: doctorId,
+                status: "Pending", 
+                appointmentDate: { $gte: today, $lt: tomorrow },
+                emergency: isEmergency
+            }).sort({ queueNumber: -1 });
+
+            queueNumber = highestAppt ? highestAppt.queueNumber + 1 : 1;
+        }
 
         const appointment = await Appointment.create({
             patient: req.user.id,
@@ -84,23 +94,6 @@ exports.completeAppointment = async (req, res) => {
         appointment.status = "Completed";
         await appointment.save();
 
-        const today = new Date(appointment.appointmentDate);
-        today.setHours(0, 0, 0, 0);
-        const tomorrow = new Date(today);
-        tomorrow.setDate(tomorrow.getDate() + 1);
-
-        // --- STRICT LINE SHIFTING ---
-        await Appointment.updateMany(
-            {
-                doctor: appointment.doctor,
-                appointmentDate: { $gte: today, $lt: tomorrow },
-                queueNumber: { $gt: appointment.queueNumber },
-                status: "Pending",
-                emergency: appointment.emergency === true // Strict boolean check
-            },
-            { $inc: { queueNumber: -1 } }
-        );
-
         const io = req.app.get("io");
         if (io) io.emit("queueUpdated");
 
@@ -136,23 +129,6 @@ exports.cancelAppointment = async (req, res) => {
 
         appointment.status = "Cancelled";
         await appointment.save();
-
-        const today = new Date(appointment.appointmentDate);
-        today.setHours(0, 0, 0, 0);
-        const tomorrow = new Date(today);
-        tomorrow.setDate(tomorrow.getDate() + 1);
-
-        // --- STRICT LINE SHIFTING ---
-        await Appointment.updateMany(
-            {
-                doctor: appointment.doctor,
-                appointmentDate: { $gte: today, $lt: tomorrow },
-                queueNumber: { $gt: appointment.queueNumber },
-                status: "Pending",
-                emergency: appointment.emergency === true // Strict boolean check
-            },
-            { $inc: { queueNumber: -1 } }
-        );
 
         const io = req.app.get("io");
         if (io) io.emit("queueUpdated");
@@ -202,7 +178,6 @@ exports.hospitalBookAppointment = async (req, res) => {
 
         const isEmergency = emergency === true || emergency === "true";
 
-        // --- BULLETPROOF COUNTING METHOD ---
         const pendingCount = await Appointment.countDocuments({ 
             hospital: hospitalId, 
             doctor: doctorId,
@@ -211,8 +186,20 @@ exports.hospitalBookAppointment = async (req, res) => {
             emergency: isEmergency 
         }); 
 
-        const queueNumber = pendingCount + 1;
-        // -----------------------------------
+        let queueNumber = 1;
+
+        if (pendingCount > 0) {
+            // FIX: Added status: "Pending" here so it ignores old completed tests!
+            const highestAppt = await Appointment.findOne({
+                hospital: hospitalId,
+                doctor: doctorId,
+                status: "Pending", 
+                appointmentDate: { $gte: today, $lt: tomorrow },
+                emergency: isEmergency
+            }).sort({ queueNumber: -1 });
+
+            queueNumber = highestAppt ? highestAppt.queueNumber + 1 : 1;
+        }
 
         const newAppointment = new Appointment({
             patient: walkInPatient._id,
