@@ -10,7 +10,9 @@ const appointmentSchema = new mongoose.Schema({
         type: String
     },
     mobile: {
-        type: String
+        type: String,
+        required: [true, "Mobile number is required"], // Makes sure it can't be left blank
+        match: [/^[0-9]{10}$/, "Please enter a valid 10-digit mobile number"] // Forces exactly 10 numbers
     },
     age: {
         type: Number

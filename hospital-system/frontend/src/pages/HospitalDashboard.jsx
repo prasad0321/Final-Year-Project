@@ -5,9 +5,9 @@ import Navbar from "../components/Navbar";
 
 const HospitalDashboard = () => {
   const [queue, setQueue] = useState([]);
-  const [history, setHistory] = useState([]); 
+  const [history, setHistory] = useState([]);
   const [doctors, setDoctors] = useState([]);
-  const [activeTab, setActiveTab] = useState("queue"); 
+  const [activeTab, setActiveTab] = useState("queue");
   const token = localStorage.getItem("token");
 
   const [showDoctorModal, setShowDoctorModal] = useState(false);
@@ -83,7 +83,6 @@ const HospitalDashboard = () => {
     e.stopPropagation();
     try {
       await API.put(`/appointment/complete/${id}`, {}, { headers: { Authorization: `Bearer ${token}` } });
-      // INSTANT REFRESH TRIGGERED HERE
       fetchQueue();
       fetchHistory();
     } catch (err) { console.log(err); }
@@ -202,7 +201,7 @@ const HospitalDashboard = () => {
               <div style={{ display: "grid", gap: "15px" }}>
                 {queue.map((item) => (
                   <div 
-                    key={item._id} 
+                    key={item._id}
                     onClick={() => setSelectedPatient(item)}
                     style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "15px", border: "1px solid #eee", borderRadius: "8px", backgroundColor: item.emergency ? "#fff1f1" : "white", cursor: "pointer", transition: "0.2s" }}
                     onMouseOver={(e) => e.currentTarget.style.boxShadow = "0 4px 10px rgba(0,0,0,0.1)"}
