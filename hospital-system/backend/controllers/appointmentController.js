@@ -173,6 +173,17 @@ exports.cancelAppointment = async (req, res) => {
         res.status(500).json({ error: error.message });
     }
 };
+exports.getMyAppointments = async (req, res) => {
+    try {
+        const appointments = await Appointment.find({ patient: req.user.id })
+            .populate("hospital", "name")
+            .populate("doctor", "name")
+            .sort({ appointmentDate: -1 });
+        res.json(appointments);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
 
 exports.hospitalBookAppointment = async (req, res) => {
     try {
