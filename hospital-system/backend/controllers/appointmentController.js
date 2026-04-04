@@ -3,18 +3,24 @@ const Patient = require("../models/Patient");
 
 exports.bookAppointment = async (req, res) => {
     try {
-        // 1. ADDED the missing fields to the extraction here!
-        const { 
-            hospitalId, 
-            doctorId, 
-            appointmentDate, 
+        const {
+            hospitalId,
+            doctorId,
+            appointmentDate,
             emergency,
-            patientName, 
-            mobile, 
-            age, 
-            gender, 
-            symptoms 
+            patientName,
+            mobile,
+            age,
+            gender,
+            symptoms
         } = req.body;
+
+        // --- BACKEND PHONE VALIDATION ---
+        const phoneRegex = /^[0-9]{10}$/;
+        if (!phoneRegex.test(mobile)) {
+            return res.status(400).json({ error: "Please enter a valid 10-digit mobile number." });
+        }
+        // --------------------------------
 
         const today = new Date(appointmentDate);
         today.setHours(0, 0, 0, 0);
@@ -172,6 +178,11 @@ exports.hospitalBookAppointment = async (req, res) => {
     try {
         const { patientName, doctorId, emergency, mobile, age, gender, symptoms } = req.body;
         
+        const phoneRegex = /^[0-9]{10}$/;
+        if (!phoneRegex.test(mobile)) {
+            return res.status(400).json({ error: "Please enter a valid 10-digit mobile number." });
+        }
+
         const userObj = req.user || req.hospital;
         const hospitalId = userObj.id || userObj._id;
 
