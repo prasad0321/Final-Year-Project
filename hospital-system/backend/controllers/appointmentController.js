@@ -3,7 +3,6 @@ const Patient = require("../models/Patient");
 
 exports.bookAppointment = async (req, res) => {
     try {
-        // 1. ADDED the missing fields to the extraction here!
         const { 
             hospitalId, 
             doctorId, 
