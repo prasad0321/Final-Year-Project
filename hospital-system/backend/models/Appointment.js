@@ -37,9 +37,9 @@ const appointmentSchema = new mongoose.Schema({
         type: Date,
         required: true
     },
-    slot: { 
+    slot: {
         type: String,
-        enum: ["Morning", "Evening"],
+        enum: ["Morning", "Evening", "Emergency"],
         required: true
     },
     appointmentTime: { // <-- NEW FIELD FOR EXACT 10-MIN SLOT

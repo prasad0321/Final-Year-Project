@@ -20,8 +20,7 @@ const {
 // --- ROUTES ---
 
 // Fixed: Changed 'verifyToken' to 'auth', and just used 'getAvailableSlots'
-router.get("/available-slots", auth, getAvailableSlots); 
-
+router.get("/available-slots", auth, getAvailableSlots);
 router.post("/book", auth, bookAppointment);
 router.get("/my-appointments", auth, getMyAppointments);
 router.get("/queue", auth, hospitalOnly, getHospitalQueue);

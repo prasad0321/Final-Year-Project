@@ -11,7 +11,6 @@ const HospitalDashboard = () => {
   const token = localStorage.getItem("token");
 
   const [showDoctorModal, setShowDoctorModal] = useState(false);
-  // Replaced capacity with slot timings for Doctor creation
   const [doctorForm, setDoctorForm] = useState({ 
     name: "", specialization: "", experience: "", consultationFee: "", 
     slotDuration: 10, morningStart: "10:00", morningEnd: "14:00", eveningStart: "16:00", eveningEnd: "20:00" 
@@ -22,10 +21,8 @@ const HospitalDashboard = () => {
   const [resourceForm, setResourceForm] = useState({ ...resources });
 
   const [showWalkInModal, setShowWalkInModal] = useState(false);
-  // ADDED: appointmentTime field for the exact 10-minute slot
   const [walkInForm, setWalkInForm] = useState({ patientName: "", mobile: "", age: "", gender: "Male", symptoms: "", doctorId: "", slot: "Morning", appointmentTime: "", emergency: false });
   
-  // NEW STATE: To hold the 10-minute intervals fetched from the backend
   const [availableSlots, setAvailableSlots] = useState([]);
 
   const [photos, setPhotos] = useState([]);
@@ -72,12 +69,12 @@ const HospitalDashboard = () => {
     } catch (err) { console.log(err); }
   };
 
-  // --- NEW HOOK: FETCH 10-MINUTE SLOTS DYNAMICALLY ---
+  // Fetch 10-minute slots dynamically (Only if NOT an emergency)
   useEffect(() => {
     const fetchAvailableSlots = async () => {
-      if (walkInForm.doctorId && walkInForm.slot) {
+      if (walkInForm.doctorId && walkInForm.slot && !walkInForm.emergency) {
         try {
-          const today = new Date().toISOString().split("T")[0]; // Get current date in YYYY-MM-DD
+          const today = new Date().toISOString().split("T")[0]; 
           const res = await API.get(`/appointment/available-slots?doctorId=${walkInForm.doctorId}&date=${today}&slotType=${walkInForm.slot}`, { 
             headers: { Authorization: `Bearer ${token}` } 
           });
@@ -86,12 +83,11 @@ const HospitalDashboard = () => {
           console.log("Failed to fetch slots:", err);
         }
       } else {
-        setAvailableSlots([]); // Clear if no doctor/session selected
+        setAvailableSlots([]); 
       }
     };
     fetchAvailableSlots();
-  }, [walkInForm.doctorId, walkInForm.slot]); // Re-run whenever Doctor or Session changes
-  // ---------------------------------------------------
+  }, [walkInForm.doctorId, walkInForm.slot, walkInForm.emergency]); 
 
   useEffect(() => {
     fetchQueue();
@@ -156,7 +152,6 @@ const HospitalDashboard = () => {
   const handleAddDoctor = async (e) => {
     e.preventDefault();
     try {
-      // Structure the data to match the new backend requirement
       const newDocData = {
           name: doctorForm.name,
           specialization: doctorForm.specialization,
@@ -236,38 +231,77 @@ const HospitalDashboard = () => {
           <TabButton active={activeTab === "gallery"} onClick={() => setActiveTab("gallery")} label="📸 Gallery" />
         </div>
 
-        {activeTab === "queue" && (
-          <div style={cardStyle}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
-              <h3 style={{ margin: 0 }}>Live Patient Queue</h3>
-              <button style={btnPrimary} onClick={() => setShowWalkInModal(true)}>➕ Book Walk-in</button>
-            </div>
-            {queue.length === 0 ? <p>No patients currently waiting.</p> : (
-              <div style={{ display: "grid", gap: "15px" }}>
-                {queue.map((item) => (
-                  <div 
-                    key={item._id}
-                    onClick={() => setSelectedPatient(item)}
-                    style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "15px", border: "1px solid #eee", borderRadius: "8px", backgroundColor: item.emergency ? "#fff1f1" : "white", cursor: "pointer", transition: "0.2s" }}
-                    onMouseOver={(e) => e.currentTarget.style.boxShadow = "0 4px 10px rgba(0,0,0,0.1)"}
-                    onMouseOut={(e) => e.currentTarget.style.boxShadow = "none"}
-                  >
-                    <div>
-                      {item.emergency && <span style={{ color: "red", fontWeight: "bold", fontSize: "12px", display: "block", marginBottom: "5px" }}>🚨 EMERGENCY</span>}
-                      {/* UPDATED TO SHOW EXACT TIME */}
-                      <h4 style={{ margin: "0 0 5px 0", color: "#2c6bed" }}>{item.appointmentTime} - Queue #{item.queueNumber} ({item.slot})</h4>
-                      <p style={{ margin: 0 }}><strong>Patient:</strong> {item.patientName || item.patient?.name} | <strong>Doctor:</strong> {item.doctor?.name}</p>
-                    </div>
-                    <div>
-                      <button onClick={(e) => handleComplete(item._id, e)} style={btnSuccess}>Complete</button>
-                      <button onClick={(e) => handleCancel(item._id, e)} style={btnDanger}>Cancel</button>
-                    </div>
-                  </div>
-                ))}
+        {activeTab === "queue" && (() => {
+          const emergencyQueue = queue.filter(item => item.emergency === true);
+          const regularQueue = queue.filter(item => item.emergency === false);
+
+          return (
+            <div style={cardStyle}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
+                <h3 style={{ margin: 0 }}>Live Patient Queue</h3>
+                <button style={btnPrimary} onClick={() => setShowWalkInModal(true)}>➕ Book Walk-in</button>
               </div>
-            )}
-          </div>
-        )}
+
+              {/* --- 🚨 EMERGENCY QUEUE SECTION --- */}
+              <div style={{ marginBottom: "30px", backgroundColor: "#fff5f5", padding: "15px", borderRadius: "8px", border: "1px solid #ffcdd2" }}>
+                <h4 style={{ margin: "0 0 15px 0", color: "#d32f2f", fontSize: "18px", borderBottom: "2px solid #ffcdd2", paddingBottom: "5px" }}>
+                  🚨 Emergency Queue ({emergencyQueue.length})
+                </h4>
+                {emergencyQueue.length === 0 ? <p style={{ color: "#d32f2f", margin: 0 }}>No emergency patients at the moment.</p> : (
+                  <div style={{ display: "grid", gap: "15px" }}>
+                    {emergencyQueue.map((item) => (
+                      <div 
+                        key={item._id}
+                        onClick={() => setSelectedPatient(item)}
+                        style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "15px", border: "2px solid #ef5350", borderRadius: "8px", backgroundColor: "white", cursor: "pointer", boxShadow: "0 4px 6px rgba(211, 47, 47, 0.1)" }}
+                      >
+                        <div>
+                          <span style={{ backgroundColor: "#d32f2f", color: "white", padding: "3px 8px", borderRadius: "4px", fontSize: "12px", fontWeight: "bold", marginBottom: "8px", display: "inline-block" }}>URGENT</span>
+                          <h4 style={{ margin: "0 0 5px 0", color: "#d32f2f" }}>{item.appointmentTime} - Queue #{item.queueNumber}</h4>
+                          <p style={{ margin: 0 }}><strong>Patient:</strong> {item.patientName || item.patient?.name} | <strong>Doctor:</strong> {item.doctor?.name}</p>
+                        </div>
+                        <div>
+                          <button onClick={(e) => handleComplete(item._id, e)} style={btnSuccess}>Complete</button>
+                          <button onClick={(e) => handleCancel(item._id, e)} style={btnDanger}>Cancel</button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* --- 📋 REGULAR QUEUE SECTION --- */}
+              <div>
+                <h4 style={{ margin: "0 0 15px 0", color: "#2c6bed", fontSize: "18px", borderBottom: "2px solid #bbdefb", paddingBottom: "5px" }}>
+                  📋 Regular Appointments ({regularQueue.length})
+                </h4>
+                {regularQueue.length === 0 ? <p style={{ color: "#666" }}>No regular patients currently waiting.</p> : (
+                  <div style={{ display: "grid", gap: "15px" }}>
+                    {regularQueue.map((item) => (
+                      <div 
+                        key={item._id}
+                        onClick={() => setSelectedPatient(item)}
+                        style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "15px", border: "1px solid #eee", borderRadius: "8px", backgroundColor: "white", cursor: "pointer", transition: "0.2s" }}
+                        onMouseOver={(e) => e.currentTarget.style.boxShadow = "0 4px 10px rgba(0,0,0,0.1)"}
+                        onMouseOut={(e) => e.currentTarget.style.boxShadow = "none"}
+                      >
+                        <div>
+                          <h4 style={{ margin: "0 0 5px 0", color: "#2c6bed" }}>{item.appointmentTime} - Queue #{item.queueNumber} ({item.slot})</h4>
+                          <p style={{ margin: 0 }}><strong>Patient:</strong> {item.patientName || item.patient?.name} | <strong>Doctor:</strong> {item.doctor?.name}</p>
+                        </div>
+                        <div>
+                          <button onClick={(e) => handleComplete(item._id, e)} style={btnSuccess}>Complete</button>
+                          <button onClick={(e) => handleCancel(item._id, e)} style={btnDanger}>Cancel</button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+            </div>
+          );
+        })()}
 
         {activeTab === "history" && (
           <div style={cardStyle}>
@@ -343,7 +377,6 @@ const HospitalDashboard = () => {
           </div>
         )}
 
-        {/* ... (Resources and Gallery Tabs remain exactly the same) ... */}
         {activeTab === "resources" && (
           <div style={cardStyle}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
@@ -430,21 +463,34 @@ const HospitalDashboard = () => {
                 {doctors.map(doc => <option key={doc._id} value={doc._id}>{doc.name}</option>)}
               </select>
 
+              {/* --- UPDATED EMERGENCY DISABLED LOGIC --- */}
               <div style={{ display: "flex", gap: "10px" }}>
                 <div style={{ flex: 1 }}>
                     <label style={labelStyle}>OPD Session</label>
-                    <select required style={inputStyle} value={walkInForm.slot} onChange={(e) => setWalkInForm({...walkInForm, slot: e.target.value, appointmentTime: ""})}>
+                    <select 
+                        required={!walkInForm.emergency} 
+                        disabled={walkInForm.emergency} 
+                        style={{...inputStyle, backgroundColor: walkInForm.emergency ? "#f0f0f0" : "white"}} 
+                        value={walkInForm.emergency ? "" : walkInForm.slot} 
+                        onChange={(e) => setWalkInForm({...walkInForm, slot: e.target.value, appointmentTime: ""})}
+                    >
+                        {walkInForm.emergency && <option value="">-- Disabled for Emergency --</option>}
                         <option value="Morning">Morning Session</option>
                         <option value="Evening">Evening Session</option>
                     </select>
                 </div>
                 
-                {/* --- NEW EXACT TIME DROPDOWN --- */}
                 <div style={{ flex: 1 }}>
                     <label style={labelStyle}>Select Time</label>
-                    <select required style={inputStyle} value={walkInForm.appointmentTime} onChange={(e) => setWalkInForm({...walkInForm, appointmentTime: e.target.value})} disabled={!walkInForm.doctorId}>
-                        <option value="">-- Choose Time --</option>
-                        {availableSlots.length === 0 && walkInForm.doctorId ? (
+                    <select 
+                        required={!walkInForm.emergency} 
+                        disabled={walkInForm.emergency || !walkInForm.doctorId} 
+                        style={{...inputStyle, backgroundColor: walkInForm.emergency ? "#f0f0f0" : "white"}} 
+                        value={walkInForm.emergency ? "" : walkInForm.appointmentTime} 
+                        onChange={(e) => setWalkInForm({...walkInForm, appointmentTime: e.target.value})}
+                    >
+                        <option value="">{walkInForm.emergency ? "-- IMMEDIATE --" : "-- Choose Time --"}</option>
+                        {availableSlots.length === 0 && walkInForm.doctorId && !walkInForm.emergency ? (
                             <option value="" disabled>No slots available</option>
                         ) : (
                             availableSlots.map(time => (
@@ -455,8 +501,8 @@ const HospitalDashboard = () => {
                 </div>
               </div>
               
-              <label style={{ display: "flex", alignItems: "center", gap: "10px", marginTop: "10px", marginBottom: "20px", fontWeight: "bold", color: "#d32f2f" }}>
-                <input type="checkbox" checked={walkInForm.emergency} onChange={(e) => setWalkInForm({...walkInForm, emergency: e.target.checked})} /> 🚨 Mark as Emergency
+              <label style={{ display: "flex", alignItems: "center", gap: "10px", marginTop: "10px", marginBottom: "20px", fontWeight: "bold", color: "#d32f2f", cursor: "pointer" }}>
+                <input type="checkbox" checked={walkInForm.emergency} onChange={(e) => setWalkInForm({...walkInForm, emergency: e.target.checked})} style={{ width: "18px", height: "18px" }} /> 🚨 Mark as Emergency
               </label>
               
               <div style={{ display: "flex", gap: "10px" }}>
@@ -476,7 +522,7 @@ const HospitalDashboard = () => {
             
             <div style={{ display: "flex", flexDirection: "column", gap: "12px", marginTop: "20px", fontSize: "15px" }}>
               <p style={{ margin: 0 }}><strong>Name:</strong> {selectedPatient.patientName || selectedPatient.patient?.name}</p>
-              <p style={{ margin: 0 }}><strong>Time Slot:</strong> <span style={{color: "#2e7d32", fontWeight: "bold"}}>{selectedPatient.appointmentTime}</span> ({selectedPatient.slot})</p>
+              <p style={{ margin: 0 }}><strong>Time Slot:</strong> <span style={{color: selectedPatient.emergency ? "#d32f2f" : "#2e7d32", fontWeight: "bold"}}>{selectedPatient.appointmentTime}</span> ({selectedPatient.slot})</p>
               <p style={{ margin: 0 }}><strong>Queue Number:</strong> #{selectedPatient.queueNumber}</p>
               <p style={{ margin: 0 }}><strong>Status:</strong> <span style={{ color: selectedPatient.status === "Completed" ? "green" : "orange", fontWeight: "bold" }}>{selectedPatient.status}</span></p>
               <p style={{ margin: 0 }}><strong>Assigned Doctor:</strong> {selectedPatient.doctor?.name}</p>
