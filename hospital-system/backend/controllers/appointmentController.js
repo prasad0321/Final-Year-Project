@@ -1,62 +1,127 @@
 const Appointment = require("../models/Appointment");
 const Patient = require("../models/Patient");
+const Doctor = require("../models/Doctor");
+
+// --- NEW FUNCTION: GENERATE 10-MIN INTERVALS ---
+exports.getAvailableSlots = async (req, res) => {
+    try {
+        const { doctorId, date, slotType } = req.query; // slotType = "Morning" or "Evening"
+
+        if (!doctorId || !date || !slotType) {
+            return res.status(400).json({ error: "Missing required parameters" });
+        }
+
+        const doctor = await Doctor.findById(doctorId);
+        if (!doctor) return res.status(404).json({ error: "Doctor not found" });
+
+        // Get shift times based on selection
+        const shift = slotType === "Morning" ? doctor.morningSlot : doctor.eveningSlot;
+        const duration = doctor.slotDuration; // e.g., 10 minutes
+
+        // Helper to convert "HH:MM" to minutes for easy math
+        const timeToMinutes = (timeStr) => {
+            const [hours, minutes] = timeStr.split(":").map(Number);
+            return (hours * 60) + minutes;
+        };
+
+        // Helper to convert minutes back to "HH:MM"
+        const minutesToTime = (totalMinutes) => {
+            const hours = Math.floor(totalMinutes / 60).toString().padStart(2, "0");
+            const mins = (totalMinutes % 60).toString().padStart(2, "0");
+            return `${hours}:${mins}`;
+        };
+
+        const startMins = timeToMinutes(shift.start);
+        const endMins = timeToMinutes(shift.end);
+        let allPossibleSlots = [];
+
+        // Generate every 10 min interval
+        for (let time = startMins; time < endMins; time += duration) {
+            allPossibleSlots.push(minutesToTime(time));
+        }
+
+        // Check database for already booked times on this specific day
+        const today = new Date(date);
+        today.setHours(0, 0, 0, 0);
+        const tomorrow = new Date(today);
+        tomorrow.setDate(tomorrow.getDate() + 1);
+
+        const bookedAppointments = await Appointment.find({
+            doctor: doctorId,
+            appointmentDate: { $gte: today, $lt: tomorrow },
+            slot: slotType,
+            status: { $ne: "Cancelled" }
+        }).select("appointmentTime");
+
+        // Extract just the time strings (e.g., ["10:10", "10:30"])
+        const bookedTimes = bookedAppointments.map(app => app.appointmentTime);
+
+        // Filter out the booked ones
+        const availableSlots = allPossibleSlots.filter(time => !bookedTimes.includes(time));
+
+        res.json({ availableSlots });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+// ------------------------------------------------
 
 exports.bookAppointment = async (req, res) => {
     try {
-        const { hospitalId, doctorId, appointmentDate, emergency, patientName, mobile, age, gender, symptoms } = req.body;
+        const { hospitalId, doctorId, appointmentDate, emergency, patientName, mobile, age, gender, symptoms, slot, appointmentTime } = req.body;
 
         const phoneRegex = /^[0-9]{10}$/;
-        if (!phoneRegex.test(mobile)) {
-            return res.status(400).json({ error: "Please enter a valid 10-digit mobile number." });
-        }
+        if (!phoneRegex.test(mobile)) return res.status(400).json({ error: "Please enter a valid 10-digit mobile number." });
+        if (!slot || !["Morning", "Evening"].includes(slot)) return res.status(400).json({ error: "Please select a valid slot (Morning/Evening)." });
+        if (!appointmentTime) return res.status(400).json({ error: "Please select an exact appointment time." });
 
         const today = new Date(appointmentDate);
         today.setHours(0, 0, 0, 0);
         const tomorrow = new Date(today);
         tomorrow.setDate(tomorrow.getDate() + 1);
 
-        const isEmergency = emergency === true || emergency === "true";
-
-        const pendingCount = await Appointment.countDocuments({ 
-            doctor: doctorId, 
-            status: "Pending",
+        // --- CHECK IF EXACT TIME IS ALREADY BOOKED ---
+        const existingAppt = await Appointment.findOne({
+            doctor: doctorId,
             appointmentDate: { $gte: today, $lt: tomorrow },
-            emergency: isEmergency 
-        }); 
+            slot: slot,
+            appointmentTime: appointmentTime,
+            status: { $ne: "Cancelled" } 
+        });
 
-        let queueNumber = 1;
+        if (existingAppt && !emergency) {
+            return res.status(400).json({ error: `The time ${appointmentTime} is already booked. Please choose another.` });
+        }
+        // ---------------------------------------------
 
-        if (pendingCount > 0) {
-            // FIX: Added status: "Pending" here so it ignores old completed tests!
-            const highestAppt = await Appointment.findOne({
-                doctor: doctorId,
-                status: "Pending", 
-                appointmentDate: { $gte: today, $lt: tomorrow },
-                emergency: isEmergency
-            }).sort({ queueNumber: -1 });
+        const currentSlotCount = await Appointment.countDocuments({
+            doctor: doctorId,
+            appointmentDate: { $gte: today, $lt: tomorrow },
+            slot: slot,
+            status: { $ne: "Cancelled" } 
+        });
 
-            queueNumber = highestAppt ? highestAppt.queueNumber + 1 : 1;
+        let queueNumber;
+        if (emergency) {
+            await Appointment.updateMany(
+                { doctor: doctorId, appointmentDate: { $gte: today, $lt: tomorrow }, slot: slot },
+                { $inc: { queueNumber: 1 } }
+            );
+            queueNumber = 1;
+        } else {
+            queueNumber = currentSlotCount + 1;
         }
 
         const appointment = await Appointment.create({
-            patient: req.user.id,
-            hospital: hospitalId,
-            doctor: doctorId,
-            appointmentDate,
-            queueNumber,
-            status: "Pending",
-            emergency: isEmergency,
-            patientName,
-            mobile,
-            age,
-            gender,
-            symptoms
+            patient: req.user.id, hospital: hospitalId, doctor: doctorId, appointmentDate,
+            queueNumber, slot, appointmentTime, status: "Pending", emergency: emergency || false,
+            patientName, mobile, age, gender, symptoms
         });
 
         const io = req.app.get("io");
         if (io) io.emit("queueUpdated");
 
-        res.status(201).json({ message: "Appointment Booked", queueNumber, appointment });
+        res.status(201).json({ message: "Appointment Booked", queueNumber, appointmentTime, appointment });
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
@@ -76,7 +141,7 @@ exports.getHospitalQueue = async (req, res) => {
         })
         .populate("patient", "name email")
         .populate("doctor", "name")
-        .sort({ queueNumber: 1 }); 
+        .sort({ appointmentTime: 1 }); // Sort by actual time now!
 
         res.json(appointments);
     } catch (error) {
@@ -93,6 +158,22 @@ exports.completeAppointment = async (req, res) => {
 
         appointment.status = "Completed";
         await appointment.save();
+
+        const today = new Date(appointment.appointmentDate);
+        today.setHours(0, 0, 0, 0);
+        const tomorrow = new Date(today);
+        tomorrow.setDate(tomorrow.getDate() + 1);
+
+        await Appointment.updateMany(
+            {
+                doctor: appointment.doctor,
+                appointmentDate: { $gte: today, $lt: tomorrow },
+                slot: appointment.slot,
+                queueNumber: { $gt: appointment.queueNumber },
+                status: "Pending"
+            },
+            { $inc: { queueNumber: -1 } }
+        );
 
         const io = req.app.get("io");
         if (io) io.emit("queueUpdated");
@@ -130,6 +211,22 @@ exports.cancelAppointment = async (req, res) => {
         appointment.status = "Cancelled";
         await appointment.save();
 
+        const today = new Date(appointment.appointmentDate);
+        today.setHours(0, 0, 0, 0);
+        const tomorrow = new Date(today);
+        tomorrow.setDate(tomorrow.getDate() + 1);
+
+        await Appointment.updateMany(
+            {
+                doctor: appointment.doctor,
+                appointmentDate: { $gte: today, $lt: tomorrow },
+                slot: appointment.slot,
+                queueNumber: { $gt: appointment.queueNumber },
+                status: "Pending"
+            },
+            { $inc: { queueNumber: -1 } }
+        );
+
         const io = req.app.get("io");
         if (io) io.emit("queueUpdated");
 
@@ -139,81 +236,55 @@ exports.cancelAppointment = async (req, res) => {
     }
 };
 
-exports.getMyAppointments = async (req, res) => {
-    try {
-        const appointments = await Appointment.find({ patient: req.user.id })
-            .populate("hospital", "name")
-            .populate("doctor", "name")
-            .sort({ appointmentDate: -1 });
-        res.json(appointments);
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
-};
-
 exports.hospitalBookAppointment = async (req, res) => {
     try {
-        const { patientName, doctorId, emergency, mobile, age, gender, symptoms } = req.body;
+        const { patientName, doctorId, emergency, mobile, age, gender, symptoms, slot, appointmentTime } = req.body;
         
         const phoneRegex = /^[0-9]{10}$/;
-        if (!phoneRegex.test(mobile)) {
-            return res.status(400).json({ error: "Please enter a valid 10-digit mobile number." });
-        }
+        if (!phoneRegex.test(mobile)) return res.status(400).json({ error: "Please enter a valid 10-digit mobile number." });
+        if (!slot || !["Morning", "Evening"].includes(slot)) return res.status(400).json({ error: "Please select a valid slot (Morning/Evening)." });
+        if (!appointmentTime) return res.status(400).json({ error: "Please select an exact appointment time." });
 
         const userObj = req.user || req.hospital;
         const hospitalId = userObj.id || userObj._id;
-
-        const walkInPatient = new Patient({
-            name: patientName,
-            email: `walkin_${Date.now()}@hospital.com`,
-            password: "walkin_password",
-            mobile: mobile
-        });
-        await walkInPatient.save();
 
         const today = new Date();
         today.setHours(0, 0, 0, 0);
         const tomorrow = new Date(today);
         tomorrow.setDate(tomorrow.getDate() + 1);
 
-        const isEmergency = emergency === true || emergency === "true";
-
-        const pendingCount = await Appointment.countDocuments({ 
-            hospital: hospitalId, 
+        // --- CHECK IF EXACT TIME IS ALREADY BOOKED ---
+        const existingAppt = await Appointment.findOne({
             doctor: doctorId,
-            status: "Pending",
             appointmentDate: { $gte: today, $lt: tomorrow },
-            emergency: isEmergency 
-        }); 
+            slot: slot,
+            appointmentTime: appointmentTime,
+            status: { $ne: "Cancelled" }
+        });
 
-        let queueNumber = 1;
-
-        if (pendingCount > 0) {
-            // FIX: Added status: "Pending" here so it ignores old completed tests!
-            const highestAppt = await Appointment.findOne({
-                hospital: hospitalId,
-                doctor: doctorId,
-                status: "Pending", 
-                appointmentDate: { $gte: today, $lt: tomorrow },
-                emergency: isEmergency
-            }).sort({ queueNumber: -1 });
-
-            queueNumber = highestAppt ? highestAppt.queueNumber + 1 : 1;
+        if (existingAppt && !emergency) {
+            return res.status(400).json({ error: `The time ${appointmentTime} is already booked.` });
         }
+        // ---------------------------------------------
+
+        const walkInPatient = new Patient({
+            name: patientName, email: `walkin_${Date.now()}@hospital.com`, password: "walkin_password", mobile: mobile
+        });
+        await walkInPatient.save();
+
+        const currentSlotCount = await Appointment.countDocuments({
+            doctor: doctorId,
+            appointmentDate: { $gte: today, $lt: tomorrow },
+            slot: slot,
+            status: { $ne: "Cancelled" }
+        });
+        
+        const queueNumber = currentSlotCount + 1;
 
         const newAppointment = new Appointment({
-            patient: walkInPatient._id,
-            patientName: patientName,
-            mobile: mobile,
-            age: age,
-            gender: gender,
-            symptoms: symptoms,
-            hospital: hospitalId,
-            doctor: doctorId,
-            queueNumber: queueNumber,
-            emergency: isEmergency,
-            status: "Pending",
-            appointmentDate: new Date()
+            patient: walkInPatient._id, patientName, mobile, age, gender, symptoms,
+            hospital: hospitalId, doctor: doctorId, queueNumber, slot, appointmentTime, // Saved here!
+            emergency: emergency || false, status: "Pending", appointmentDate: new Date()
         });
 
         await newAppointment.save();
@@ -222,6 +293,19 @@ exports.hospitalBookAppointment = async (req, res) => {
         if (io) io.emit("queueUpdated");
 
         res.status(201).json({ message: "Walk-in Appointment Booked!", appointment: newAppointment });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+exports.getMyAppointments = async (req, res) => {
+    try {
+        const appointments = await Appointment.find({ patient: req.user.id })
+            .populate("doctor", "name")
+            .populate("hospital", "name")
+            .sort({ appointmentDate: -1, appointmentTime: -1 }); // Sorted by date & time
+
+        res.json(appointments);
     } catch (error) {
         res.status(500).json({ error: error.message });
     }

@@ -11,8 +11,8 @@ const appointmentSchema = new mongoose.Schema({
     },
     mobile: {
         type: String,
-        required: [true, "Mobile number is required"], // Makes sure it can't be left blank
-        match: [/^[0-9]{10}$/, "Please enter a valid 10-digit mobile number"] // Forces exactly 10 numbers
+        required: [true, "Mobile number is required"],
+        match: [/^[0-9]{10}$/, "Please enter a valid 10-digit mobile number"]
     },
     age: {
         type: Number
@@ -35,6 +35,15 @@ const appointmentSchema = new mongoose.Schema({
     },
     appointmentDate: {
         type: Date,
+        required: true
+    },
+    slot: { 
+        type: String,
+        enum: ["Morning", "Evening"],
+        required: true
+    },
+    appointmentTime: { // <-- NEW FIELD FOR EXACT 10-MIN SLOT
+        type: String,
         required: true
     },
     queueNumber: {
