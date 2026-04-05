@@ -238,7 +238,7 @@ exports.cancelAppointment = async (req, res) => {
 
 exports.hospitalBookAppointment = async (req, res) => {
     try {
-        const { patientName, doctorId, emergency, mobile, age, gender, symptoms, slot, appointmentTime } = req.body;
+        const { patientName, doctorId, emergency, mobile, age, gender, symptoms, slot, appointmentTime, isFollowUp } = req.body;
         
         const phoneRegex = /^[0-9]{10}$/;
         if (!phoneRegex.test(mobile)) return res.status(400).json({ error: "Please enter a valid 10-digit mobile number." });
@@ -311,6 +311,7 @@ exports.hospitalBookAppointment = async (req, res) => {
             slot: finalSlot, 
             appointmentTime: finalTime, 
             emergency: emergency || false, 
+            isFollowUp: isFollowUp || false, // <-- SAVED HERE
             status: "Pending", 
             appointmentDate: new Date()
         });

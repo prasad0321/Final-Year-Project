@@ -60,6 +60,10 @@ const appointmentSchema = new mongoose.Schema({
     emergency: {
         type: Boolean,
         default: false
+    },
+    isFollowUp: {
+        type: Boolean,
+        default: false
     }
 });
 

@@ -21,7 +21,13 @@ const HospitalDashboard = () => {
   const [resourceForm, setResourceForm] = useState({ ...resources });
 
   const [showWalkInModal, setShowWalkInModal] = useState(false);
-  const [walkInForm, setWalkInForm] = useState({ patientName: "", mobile: "", age: "", gender: "Male", symptoms: "", doctorId: "", slot: "Morning", appointmentTime: "", emergency: false });
+  
+  // ADDED: isFollowUp and previousAppointment state
+  const [walkInForm, setWalkInForm] = useState({ 
+      patientName: "", mobile: "", age: "", gender: "Male", symptoms: "", 
+      doctorId: "", slot: "Morning", appointmentTime: "", emergency: false, 
+      isFollowUp: false, previousAppointment: null 
+  });
   
   const [availableSlots, setAvailableSlots] = useState([]);
 
@@ -69,7 +75,6 @@ const HospitalDashboard = () => {
     } catch (err) { console.log(err); }
   };
 
-  // Fetch 10-minute slots dynamically (Only if NOT an emergency)
   useEffect(() => {
     const fetchAvailableSlots = async () => {
       if (walkInForm.doctorId && walkInForm.slot && !walkInForm.emergency) {
@@ -134,7 +139,7 @@ const HospitalDashboard = () => {
     try {
       await API.post("/appointment/hospital-book", walkInForm, { headers: { Authorization: `Bearer ${token}` } });
       setShowWalkInModal(false);
-      setWalkInForm({ patientName: "", mobile: "", age: "", gender: "Male", symptoms: "", doctorId: "", slot: "Morning", appointmentTime: "", emergency: false });
+      setWalkInForm({ patientName: "", mobile: "", age: "", gender: "Male", symptoms: "", doctorId: "", slot: "Morning", appointmentTime: "", emergency: false, isFollowUp: false, previousAppointment: null });
       alert("Walk-in Appointment Booked Successfully!");
       fetchQueue(); 
     } catch (err) { alert("Failed to book: " + (err.response?.data?.error || err.message)); }
@@ -286,7 +291,11 @@ const HospitalDashboard = () => {
                         onMouseOut={(e) => e.currentTarget.style.boxShadow = "none"}
                       >
                         <div>
-                          <h4 style={{ margin: "0 0 5px 0", color: "#2c6bed" }}>{item.appointmentTime} - Queue #{item.queueNumber} ({item.slot})</h4>
+                          {/* CHANGED: Removed Queue # and Added Follow-up Badge */}
+                          <h4 style={{ margin: "0 0 5px 0", color: "#2c6bed", display: "flex", alignItems: "center" }}>
+                            {item.appointmentTime} ({item.slot})
+                            {item.isFollowUp && <span style={{ marginLeft: "10px", backgroundColor: "#e3f2fd", color: "#1976d2", padding: "3px 8px", borderRadius: "12px", fontSize: "11px", fontWeight: "bold", border: "1px solid #bbdefb" }}>🔄 Follow-up</span>}
+                          </h4>
                           <p style={{ margin: 0 }}><strong>Patient:</strong> {item.patientName || item.patient?.name} | <strong>Doctor:</strong> {item.doctor?.name}</p>
                         </div>
                         <div>
@@ -318,7 +327,10 @@ const HospitalDashboard = () => {
                     style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "15px", border: "1px solid #e0e0e0", borderRadius: "8px", backgroundColor: "#f9fcf9", cursor: "pointer" }}
                   >
                     <div>
-                      <h4 style={{ margin: "0 0 5px 0", color: "#333" }}>{item.patientName || item.patient?.name}</h4>
+                      <h4 style={{ margin: "0 0 5px 0", color: "#333", display: "flex", alignItems: "center" }}>
+                          {item.patientName || item.patient?.name}
+                          {item.isFollowUp && <span style={{ marginLeft: "10px", color: "#1976d2", fontSize: "12px" }}>🔄 (Follow-up)</span>}
+                      </h4>
                       <p style={{ margin: 0, fontSize: "14px", color: "#555" }}>
                         Treated by: <strong>{item.doctor?.name}</strong> at <strong>{item.appointmentTime}</strong>
                       </p>
@@ -427,6 +439,61 @@ const HospitalDashboard = () => {
         <div style={modalOverlayStyle}>
           <div style={{...modalContentStyle, width: "500px", maxHeight: "90vh", overflowY: "auto"}}>
             <h3 style={{ marginTop: 0, borderBottom: "2px solid #eee", paddingBottom: "10px" }}>Book Walk-in Patient</h3>
+            
+            {/* --- NEW FOLLOW UP / EMERGENCY TOGGLES --- */}
+            <div style={{ display: "flex", gap: "20px", marginBottom: "15px", padding: "10px", backgroundColor: "#f8f9fa", borderRadius: "5px", border: "1px solid #eee" }}>
+              <label style={{ display: "flex", alignItems: "center", gap: "5px", fontWeight: "bold", color: "#d32f2f", cursor: "pointer", fontSize: "14px" }}>
+                <input type="checkbox" checked={walkInForm.emergency} onChange={(e) => setWalkInForm({...walkInForm, emergency: e.target.checked, isFollowUp: false})} style={{ width: "16px", height: "16px" }} /> 🚨 Emergency
+              </label>
+              <label style={{ display: "flex", alignItems: "center", gap: "5px", fontWeight: "bold", color: "#1976d2", cursor: walkInForm.emergency ? "not-allowed" : "pointer", fontSize: "14px", opacity: walkInForm.emergency ? 0.5 : 1 }}>
+                <input type="checkbox" checked={walkInForm.isFollowUp} disabled={walkInForm.emergency} onChange={(e) => setWalkInForm({...walkInForm, isFollowUp: e.target.checked})} style={{ width: "16px", height: "16px" }} /> 🔄 Follow-up Visit
+              </label>
+            </div>
+
+            {/* --- NEW PREVIOUS VISIT DROPDOWN --- */}
+            {walkInForm.isFollowUp && (
+              <div style={{ marginBottom: "15px" }}>
+                <label style={labelStyle}>Select Previous Patient / Visit</label>
+                <select 
+                  style={{...inputStyle, backgroundColor: "#e3f2fd", borderColor: "#90caf9"}} 
+                  onChange={(e) => {
+                    const prev = history.find(h => h._id === e.target.value);
+                    if (prev) {
+                       setWalkInForm({
+                         ...walkInForm, 
+                         previousAppointment: prev,
+                         patientName: prev.patientName || prev.patient?.name,
+                         mobile: prev.mobile || "",
+                         age: prev.age || "",
+                         gender: prev.gender || "Male",
+                         doctorId: prev.doctor?._id || ""
+                       });
+                    } else {
+                       setWalkInForm({...walkInForm, previousAppointment: null, patientName: "", mobile: "", age: "", doctorId: ""});
+                    }
+                  }}
+                >
+                  <option value="">-- Choose from History --</option>
+                  {history.map(h => (
+                    <option key={h._id} value={h._id}>
+                      {h.patientName || h.patient?.name} - {new Date(h.appointmentDate).toLocaleDateString()}
+                    </option>
+                  ))}
+                </select>
+
+                {/* PREVIOUS VISIT DETAILS CARD */}
+                {walkInForm.previousAppointment && (
+                  <div style={{ backgroundColor: "#f0f4f8", padding: "12px", borderRadius: "8px", border: "1px solid #d9e2ec", fontSize: "13px", color: "#334e68", marginBottom: "15px" }}>
+                    <h4 style={{ margin: "0 0 8px 0", color: "#102a43", display: "flex", alignItems: "center", gap: "5px" }}>🕒 Previous Visit Details</h4>
+                    <p style={{ margin: "3px 0" }}><strong>Date & Time:</strong> {new Date(walkInForm.previousAppointment.appointmentDate).toLocaleDateString()} at {walkInForm.previousAppointment.appointmentTime}</p>
+                    <p style={{ margin: "3px 0" }}><strong>Patient:</strong> {walkInForm.previousAppointment.patientName || walkInForm.previousAppointment.patient?.name}</p>
+                    <p style={{ margin: "3px 0" }}><strong>Doctor:</strong> {walkInForm.previousAppointment.doctor?.name}</p>
+                    <p style={{ margin: "3px 0" }}><strong>Symptoms:</strong> {walkInForm.previousAppointment.symptoms}</p>
+                  </div>
+                )}
+              </div>
+            )}
+
             <form onSubmit={handleWalkInBook}>
               <div style={{ display: "flex", gap: "10px" }}>
                 <div style={{ flex: 1 }}>
@@ -454,7 +521,7 @@ const HospitalDashboard = () => {
                 </div>
               </div>
 
-              <label style={labelStyle}>Symptoms</label>
+              <label style={labelStyle}>{walkInForm.isFollowUp ? "Current Symptoms / Status Update" : "Symptoms"}</label>
               <textarea required rows="3" style={{...inputStyle, resize: "none"}} placeholder="Briefly describe the symptoms..." value={walkInForm.symptoms} onChange={(e) => setWalkInForm({...walkInForm, symptoms: e.target.value})}></textarea>
 
               <label style={labelStyle}>Assign Doctor</label>
@@ -463,7 +530,6 @@ const HospitalDashboard = () => {
                 {doctors.map(doc => <option key={doc._id} value={doc._id}>{doc.name}</option>)}
               </select>
 
-              {/* --- UPDATED EMERGENCY DISABLED LOGIC --- */}
               <div style={{ display: "flex", gap: "10px" }}>
                 <div style={{ flex: 1 }}>
                     <label style={labelStyle}>OPD Session</label>
@@ -501,12 +567,8 @@ const HospitalDashboard = () => {
                 </div>
               </div>
               
-              <label style={{ display: "flex", alignItems: "center", gap: "10px", marginTop: "10px", marginBottom: "20px", fontWeight: "bold", color: "#d32f2f", cursor: "pointer" }}>
-                <input type="checkbox" checked={walkInForm.emergency} onChange={(e) => setWalkInForm({...walkInForm, emergency: e.target.checked})} style={{ width: "18px", height: "18px" }} /> 🚨 Mark as Emergency
-              </label>
-              
-              <div style={{ display: "flex", gap: "10px" }}>
-                <button type="submit" style={{ ...btnSuccess, width: "100%" }}>Book Patient</button>
+              <div style={{ display: "flex", gap: "10px", marginTop: "10px" }}>
+                <button type="submit" style={{ ...btnSuccess, width: "100%" }}>Confirm Booking</button>
                 <button type="button" onClick={() => setShowWalkInModal(false)} style={{ ...btnDanger, width: "100%" }}>Cancel</button>
               </div>
             </form>
@@ -518,12 +580,15 @@ const HospitalDashboard = () => {
         <div style={modalOverlayStyle} onClick={() => setSelectedPatient(null)}>
           <div style={{...modalContentStyle, position: "relative", width: "450px"}} onClick={(e) => e.stopPropagation()}>
             <button onClick={() => setSelectedPatient(null)} style={{ position: "absolute", top: "15px", right: "15px", background: "none", border: "none", fontSize: "20px", cursor: "pointer", color: "#888" }}>✖</button>
-            <h2 style={{ marginTop: 0, color: "#2c6bed", borderBottom: "2px solid #eee", paddingBottom: "10px" }}>Patient Details</h2>
+            <h2 style={{ marginTop: 0, color: "#2c6bed", borderBottom: "2px solid #eee", paddingBottom: "10px", display: "flex", alignItems: "center" }}>
+              Patient Details
+              {selectedPatient.isFollowUp && <span style={{ marginLeft: "10px", backgroundColor: "#e3f2fd", color: "#1976d2", padding: "4px 10px", borderRadius: "12px", fontSize: "12px", border: "1px solid #bbdefb" }}>🔄 Follow-up</span>}
+            </h2>
             
             <div style={{ display: "flex", flexDirection: "column", gap: "12px", marginTop: "20px", fontSize: "15px" }}>
               <p style={{ margin: 0 }}><strong>Name:</strong> {selectedPatient.patientName || selectedPatient.patient?.name}</p>
               <p style={{ margin: 0 }}><strong>Time Slot:</strong> <span style={{color: selectedPatient.emergency ? "#d32f2f" : "#2e7d32", fontWeight: "bold"}}>{selectedPatient.appointmentTime}</span> ({selectedPatient.slot})</p>
-              <p style={{ margin: 0 }}><strong>Queue Number:</strong> #{selectedPatient.queueNumber}</p>
+              {selectedPatient.emergency && <p style={{ margin: 0 }}><strong>Queue Number:</strong> #{selectedPatient.queueNumber}</p>}
               <p style={{ margin: 0 }}><strong>Status:</strong> <span style={{ color: selectedPatient.status === "Completed" ? "green" : "orange", fontWeight: "bold" }}>{selectedPatient.status}</span></p>
               <p style={{ margin: 0 }}><strong>Assigned Doctor:</strong> {selectedPatient.doctor?.name}</p>
               
@@ -545,6 +610,7 @@ const HospitalDashboard = () => {
         </div>
       )}
 
+      {/* ... Doctor Modal and Resource Modal (Unchanged) ... */}
       {showDoctorModal && (
         <div style={modalOverlayStyle}>
           <div style={{...modalContentStyle, width: "500px"}}>
