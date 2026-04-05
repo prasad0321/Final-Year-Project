@@ -68,60 +68,84 @@ exports.getAvailableSlots = async (req, res) => {
 
 exports.bookAppointment = async (req, res) => {
     try {
-        const { hospitalId, doctorId, appointmentDate, emergency, patientName, mobile, age, gender, symptoms, slot, appointmentTime } = req.body;
+        // 1. Extract the new isFollowUp variable
+        const { hospitalId, doctorId, appointmentDate, emergency, patientName, mobile, age, gender, symptoms, slot, appointmentTime, isFollowUp } = req.body;
 
         const phoneRegex = /^[0-9]{10}$/;
         if (!phoneRegex.test(mobile)) return res.status(400).json({ error: "Please enter a valid 10-digit mobile number." });
-        if (!slot || !["Morning", "Evening"].includes(slot)) return res.status(400).json({ error: "Please select a valid slot (Morning/Evening)." });
-        if (!appointmentTime) return res.status(400).json({ error: "Please select an exact appointment time." });
+
+        let finalSlot = slot;
+        let finalTime = appointmentTime;
+
+        // 2. Emergency Bypass Logic (Just like the dashboard)
+        if (emergency) {
+            finalSlot = "Emergency";
+            finalTime = "Immediate";
+        } else {
+            if (!slot || !["Morning", "Evening"].includes(slot)) return res.status(400).json({ error: "Please select a valid slot (Morning/Evening)." });
+            if (!appointmentTime) return res.status(400).json({ error: "Please select an exact appointment time." });
+        }
 
         const today = new Date(appointmentDate);
         today.setHours(0, 0, 0, 0);
         const tomorrow = new Date(today);
         tomorrow.setDate(tomorrow.getDate() + 1);
 
-        // --- CHECK IF EXACT TIME IS ALREADY BOOKED ---
-        const existingAppt = await Appointment.findOne({
-            doctor: doctorId,
-            appointmentDate: { $gte: today, $lt: tomorrow },
-            slot: slot,
-            appointmentTime: appointmentTime,
-            status: { $ne: "Cancelled" } 
-        });
+        // 3. Prevent Double Booking (Only for regular patients)
+        if (!emergency) {
+            const existingAppt = await Appointment.findOne({
+                doctor: doctorId,
+                appointmentDate: { $gte: today, $lt: tomorrow },
+                slot: finalSlot,
+                appointmentTime: finalTime,
+                status: { $ne: "Cancelled" } 
+            });
 
-        if (existingAppt && !emergency) {
-            return res.status(400).json({ error: `The time ${appointmentTime} is already booked. Please choose another.` });
+            if (existingAppt) {
+                return res.status(400).json({ error: `The time ${finalTime} is already booked. Please choose another.` });
+            }
         }
-        // ---------------------------------------------
-
-        const currentSlotCount = await Appointment.countDocuments({
-            doctor: doctorId,
-            appointmentDate: { $gte: today, $lt: tomorrow },
-            slot: slot,
-            status: { $ne: "Cancelled" } 
-        });
 
         let queueNumber;
         if (emergency) {
             await Appointment.updateMany(
-                { doctor: doctorId, appointmentDate: { $gte: today, $lt: tomorrow }, slot: slot },
+                { doctor: doctorId, appointmentDate: { $gte: today, $lt: tomorrow }, slot: finalSlot },
                 { $inc: { queueNumber: 1 } }
             );
             queueNumber = 1;
         } else {
+            const currentSlotCount = await Appointment.countDocuments({
+                doctor: doctorId,
+                appointmentDate: { $gte: today, $lt: tomorrow },
+                slot: finalSlot,
+                status: { $ne: "Cancelled" } 
+            });
             queueNumber = currentSlotCount + 1;
         }
 
+        // 4. Save to Database
         const appointment = await Appointment.create({
-            patient: req.user.id, hospital: hospitalId, doctor: doctorId, appointmentDate,
-            queueNumber, slot, appointmentTime, status: "Pending", emergency: emergency || false,
-            patientName, mobile, age, gender, symptoms
+            patient: req.user.id, 
+            hospital: hospitalId, 
+            doctor: doctorId, 
+            appointmentDate,
+            queueNumber, 
+            slot: finalSlot, 
+            appointmentTime: finalTime, 
+            status: "Pending", 
+            emergency: emergency || false,
+            isFollowUp: isFollowUp || false, // <-- SAVED HERE
+            patientName, 
+            mobile, 
+            age, 
+            gender, 
+            symptoms
         });
 
         const io = req.app.get("io");
         if (io) io.emit("queueUpdated");
 
-        res.status(201).json({ message: "Appointment Booked", queueNumber, appointmentTime, appointment });
+        res.status(201).json({ message: "Appointment Booked", queueNumber, appointmentTime: finalTime, appointment });
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
