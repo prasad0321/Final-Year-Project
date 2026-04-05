@@ -3,44 +3,39 @@ const Patient = require("../models/Patient");
 
 exports.bookAppointment = async (req, res) => {
     try {
-        const {
-            hospitalId,
-            doctorId,
-            appointmentDate,
-            emergency,
-            patientName,
-            mobile,
-            age,
-            gender,
-            symptoms
-        } = req.body;
+        const { hospitalId, doctorId, appointmentDate, emergency, patientName, mobile, age, gender, symptoms } = req.body;
 
-        // --- BACKEND PHONE VALIDATION ---
         const phoneRegex = /^[0-9]{10}$/;
         if (!phoneRegex.test(mobile)) {
             return res.status(400).json({ error: "Please enter a valid 10-digit mobile number." });
         }
-        // --------------------------------
 
         const today = new Date(appointmentDate);
         today.setHours(0, 0, 0, 0);
         const tomorrow = new Date(today);
         tomorrow.setDate(tomorrow.getDate() + 1);
 
-        let queueNumber;
+        const isEmergency = emergency === true || emergency === "true";
 
-        if (emergency) {
-            await Appointment.updateMany(
-                { doctor: doctorId, appointmentDate: { $gte: today, $lt: tomorrow } },
-                { $inc: { queueNumber: 1 } }
-            );
-            queueNumber = 1;
-        } else {
-            const count = await Appointment.countDocuments({
+        const pendingCount = await Appointment.countDocuments({ 
+            doctor: doctorId, 
+            status: "Pending",
+            appointmentDate: { $gte: today, $lt: tomorrow },
+            emergency: isEmergency 
+        }); 
+
+        let queueNumber = 1;
+
+        if (pendingCount > 0) {
+            // FIX: Added status: "Pending" here so it ignores old completed tests!
+            const highestAppt = await Appointment.findOne({
                 doctor: doctorId,
-                appointmentDate: { $gte: today, $lt: tomorrow }
-            });
-            queueNumber = count + 1;
+                status: "Pending", 
+                appointmentDate: { $gte: today, $lt: tomorrow },
+                emergency: isEmergency
+            }).sort({ queueNumber: -1 });
+
+            queueNumber = highestAppt ? highestAppt.queueNumber + 1 : 1;
         }
 
         const appointment = await Appointment.create({
@@ -50,7 +45,7 @@ exports.bookAppointment = async (req, res) => {
             appointmentDate,
             queueNumber,
             status: "Pending",
-            emergency: emergency || false,
+            emergency: isEmergency,
             patientName,
             mobile,
             age,
@@ -81,7 +76,7 @@ exports.getHospitalQueue = async (req, res) => {
         })
         .populate("patient", "name email")
         .populate("doctor", "name")
-        .sort({ queueNumber: 1 });
+        .sort({ queueNumber: 1 }); 
 
         res.json(appointments);
     } catch (error) {
@@ -98,21 +93,6 @@ exports.completeAppointment = async (req, res) => {
 
         appointment.status = "Completed";
         await appointment.save();
-
-        const today = new Date(appointment.appointmentDate);
-        today.setHours(0, 0, 0, 0);
-        const tomorrow = new Date(today);
-        tomorrow.setDate(tomorrow.getDate() + 1);
-
-        await Appointment.updateMany(
-            {
-                doctor: appointment.doctor,
-                appointmentDate: { $gte: today, $lt: tomorrow },
-                queueNumber: { $gt: appointment.queueNumber },
-                status: "Pending"
-            },
-            { $inc: { queueNumber: -1 } }
-        );
 
         const io = req.app.get("io");
         if (io) io.emit("queueUpdated");
@@ -150,21 +130,6 @@ exports.cancelAppointment = async (req, res) => {
         appointment.status = "Cancelled";
         await appointment.save();
 
-        const today = new Date(appointment.appointmentDate);
-        today.setHours(0, 0, 0, 0);
-        const tomorrow = new Date(today);
-        tomorrow.setDate(tomorrow.getDate() + 1);
-
-        await Appointment.updateMany(
-            {
-                doctor: appointment.doctor,
-                appointmentDate: { $gte: today, $lt: tomorrow },
-                queueNumber: { $gt: appointment.queueNumber },
-                status: "Pending"
-            },
-            { $inc: { queueNumber: -1 } }
-        );
-
         const io = req.app.get("io");
         if (io) io.emit("queueUpdated");
 
@@ -173,6 +138,7 @@ exports.cancelAppointment = async (req, res) => {
         res.status(500).json({ error: error.message });
     }
 };
+
 exports.getMyAppointments = async (req, res) => {
     try {
         const appointments = await Appointment.find({ patient: req.user.id })
@@ -210,13 +176,30 @@ exports.hospitalBookAppointment = async (req, res) => {
         const tomorrow = new Date(today);
         tomorrow.setDate(tomorrow.getDate() + 1);
 
-        const lastAppt = await Appointment.findOne({ 
-            hospital: hospitalId, 
-            status: "Pending",
-            appointmentDate: { $gte: today, $lt: tomorrow }
-        }).sort({ queueNumber: -1 });
+        const isEmergency = emergency === true || emergency === "true";
 
-        const queueNumber = lastAppt ? lastAppt.queueNumber + 1 : 1;
+        const pendingCount = await Appointment.countDocuments({ 
+            hospital: hospitalId, 
+            doctor: doctorId,
+            status: "Pending",
+            appointmentDate: { $gte: today, $lt: tomorrow },
+            emergency: isEmergency 
+        }); 
+
+        let queueNumber = 1;
+
+        if (pendingCount > 0) {
+            // FIX: Added status: "Pending" here so it ignores old completed tests!
+            const highestAppt = await Appointment.findOne({
+                hospital: hospitalId,
+                doctor: doctorId,
+                status: "Pending", 
+                appointmentDate: { $gte: today, $lt: tomorrow },
+                emergency: isEmergency
+            }).sort({ queueNumber: -1 });
+
+            queueNumber = highestAppt ? highestAppt.queueNumber + 1 : 1;
+        }
 
         const newAppointment = new Appointment({
             patient: walkInPatient._id,
@@ -228,7 +211,7 @@ exports.hospitalBookAppointment = async (req, res) => {
             hospital: hospitalId,
             doctor: doctorId,
             queueNumber: queueNumber,
-            emergency: emergency || false,
+            emergency: isEmergency,
             status: "Pending",
             appointmentDate: new Date()
         });
