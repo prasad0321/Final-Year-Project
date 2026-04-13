@@ -1,20 +1,19 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom"; // 1. Imported the navigation hook
+import { useNavigate } from "react-router-dom";
 import Navbar from "../components/Navbar";
 import API from "../services/api";
 
 const Register = () => {
     const [formData, setFormData] = useState({ name: "", email: "", password: "", role: "hospital" });
     
-    const navigate = useNavigate(); // 2. Initialized the navigate function
+    const navigate = useNavigate();
 
     const handleRegister = async (e) => {
         e.preventDefault();
 
-        // 3. Frontend Gmail Check
         if (!formData.email.toLowerCase().endsWith("@gmail.com")) {
             alert("⚠️ Error: You must use a @gmail.com address to create an account.");
-            return; // Stops the form from submitting
+            return;
         }
         
         const path = formData.role === "hospital" ? "/hospital/register" : "/patient/register";
@@ -23,7 +22,6 @@ const Register = () => {
             await API.post(path, formData);
             alert("Registration Successful! Please Login.");
             
-            // 4. THE REDIRECT: Send them to the login page!
             navigate("/hospital-login"); 
             
         } catch (err) {

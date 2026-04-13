@@ -22,7 +22,6 @@ const HospitalDashboard = () => {
 
   const [showWalkInModal, setShowWalkInModal] = useState(false);
   
-  // --- ADDED EMAIL TO STATE ---
   const [walkInForm, setWalkInForm] = useState({ 
       patientName: "", email: "", mobile: "", age: "", gender: "Male", symptoms: "", 
       doctorId: "", slot: "Morning", appointmentTime: "", emergency: false, 
@@ -84,20 +83,16 @@ const HospitalDashboard = () => {
             headers: { Authorization: `Bearer ${token}` } 
           });
 
-          // --- NEW LOGIC: FILTER OUT PAST TIMES ---
           const currentTime = new Date();
           const currentTotalMinutes = (currentTime.getHours() * 60) + currentTime.getMinutes();
 
           const futureSlots = res.data.availableSlots.filter(timeStr => {
               const [hours, minutes] = timeStr.split(":").map(Number);
               const slotTotalMinutes = (hours * 60) + minutes;
-              
-              // Only keep the slot if its time is greater than the current clock time
               return slotTotalMinutes > currentTotalMinutes; 
           });
 
           setAvailableSlots(futureSlots);
-          // ----------------------------------------
 
         } catch (err) {
           console.log("Failed to fetch slots:", err);
@@ -145,7 +140,6 @@ const HospitalDashboard = () => {
   const handleWalkInBook = async (e) => {
     e.preventDefault();
 
-    // --- FRONTEND GMAIL VALIDATION ---
     if (!walkInForm.email.toLowerCase().endsWith("@gmail.com")) {
         alert("⚠️ Error: Only @gmail.com addresses are allowed for registration.");
         return; 
@@ -390,9 +384,9 @@ const HospitalDashboard = () => {
                       <td style={tdStyle}>{doc.specialization}</td>
                       <td style={tdStyle}>
                           <div style={{ fontSize: "13px", color: "#555" }}>
-                             ☀️ {doc.morningSlot?.start} - {doc.morningSlot?.end}<br/>
-                             🌙 {doc.eveningSlot?.start} - {doc.eveningSlot?.end}<br/>
-                             ⏱️ {doc.slotDuration} min intervals
+                              ☀️ {doc.morningSlot?.start} - {doc.morningSlot?.end}<br/>
+                              🌙 {doc.eveningSlot?.start} - {doc.eveningSlot?.end}<br/>
+                              ⏱️ {doc.slotDuration} min intervals
                           </div>
                       </td>
                       <td style={tdStyle}>₹{doc.consultationFee}</td>
@@ -475,18 +469,18 @@ const HospitalDashboard = () => {
                   onChange={(e) => {
                     const prev = history.find(h => h._id === e.target.value);
                     if (prev) {
-                       setWalkInForm({
-                         ...walkInForm, 
-                         previousAppointment: prev,
-                         patientName: prev.patientName || prev.patient?.name,
-                         email: prev.patient?.email || "", 
-                         mobile: prev.mobile || "",
-                         age: prev.age || "",
-                         gender: prev.gender || "Male",
-                         doctorId: prev.doctor?._id || ""
-                       });
+                        setWalkInForm({
+                          ...walkInForm,
+                          previousAppointment: prev,
+                          patientName: prev.patientName || prev.patient?.name,
+                          email: prev.patient?.email || "", 
+                          mobile: prev.mobile || "",
+                          age: prev.age || "",
+                          gender: prev.gender || "Male",
+                          doctorId: prev.doctor?._id || ""
+                        });
                     } else {
-                       setWalkInForm({...walkInForm, previousAppointment: null, patientName: "", email: "", mobile: "", age: "", doctorId: ""});
+                        setWalkInForm({...walkInForm, previousAppointment: null, patientName: "", email: "", mobile: "", age: "", doctorId: ""});
                     }
                   }}
                 >
@@ -511,8 +505,6 @@ const HospitalDashboard = () => {
             )}
 
             <form onSubmit={handleWalkInBook}>
-              
-              {/* --- NEW FORM LAYOUT WITH EMAIL FIELD --- */}
               <div style={{ display: "flex", gap: "10px" }}>
                 <div style={{ flex: 1 }}>
                   <label style={labelStyle}>Patient Name</label>
@@ -542,7 +534,6 @@ const HospitalDashboard = () => {
                   <input type="email" required pattern=".+@gmail\.com" title="Please enter a valid @gmail.com address" style={{...inputStyle, borderColor: walkInForm.email && !walkInForm.email.endsWith("@gmail.com") ? "red" : "#ccc" }} value={walkInForm.email} onChange={(e) => setWalkInForm({...walkInForm, email: e.target.value})} />
                 </div>
               </div>
-              {/* ---------------------------------------- */}
 
               <label style={labelStyle}>{walkInForm.isFollowUp ? "Current Symptoms / Status Update" : "Symptoms"}</label>
               <textarea required rows="3" style={{...inputStyle, resize: "none"}} placeholder="Briefly describe the symptoms..." value={walkInForm.symptoms} onChange={(e) => setWalkInForm({...walkInForm, symptoms: e.target.value})}></textarea>
@@ -643,12 +634,12 @@ const HospitalDashboard = () => {
               
               <div style={{ display: "flex", gap: "10px" }}>
                   <div style={{flex: 1}}>
-                     <label style={labelStyle}>Experience (Years)</label>
-                     <input type="number" required style={inputStyle} value={doctorForm.experience} onChange={(e) => setDoctorForm({...doctorForm, experience: e.target.value})} />
+                       <label style={labelStyle}>Experience (Years)</label>
+                       <input type="number" required style={inputStyle} value={doctorForm.experience} onChange={(e) => setDoctorForm({...doctorForm, experience: e.target.value})} />
                   </div>
                   <div style={{flex: 1}}>
-                     <label style={labelStyle}>Consultation Fee</label>
-                     <input type="number" required style={inputStyle} value={doctorForm.consultationFee} onChange={(e) => setDoctorForm({...doctorForm, consultationFee: e.target.value})} />
+                       <label style={labelStyle}>Consultation Fee</label>
+                       <input type="number" required style={inputStyle} value={doctorForm.consultationFee} onChange={(e) => setDoctorForm({...doctorForm, consultationFee: e.target.value})} />
                   </div>
               </div>
 

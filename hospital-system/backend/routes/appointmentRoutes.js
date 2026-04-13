@@ -1,11 +1,9 @@
 const express = require("express");
 const router = express.Router();
 
-// Middleware Imports
 const hospitalOnly = require("../middleware/hospitalOnly");
 const auth = require("../middleware/authMiddleware");
 
-// Controller Imports
 const {
     bookAppointment,
     getHospitalQueue,
@@ -14,12 +12,10 @@ const {
     getCompletedAppointments,
     hospitalBookAppointment,
     getMyAppointments,
-    getAvailableSlots // <-- Added the new function here!
+    getAvailableSlots
 } = require("../controllers/appointmentController");
 
-// --- ROUTES ---
 
-// Fixed: Changed 'verifyToken' to 'auth', and just used 'getAvailableSlots'
 router.get("/available-slots", auth, getAvailableSlots);
 router.post("/book", auth, bookAppointment);
 router.get("/my-appointments", auth, getMyAppointments);

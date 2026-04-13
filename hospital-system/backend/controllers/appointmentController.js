@@ -2,10 +2,9 @@ const Appointment = require("../models/Appointment");
 const Patient = require("../models/Patient");
 const Doctor = require("../models/Doctor");
 
-// --- NEW FUNCTION: GENERATE 10-MIN INTERVALS ---
 exports.getAvailableSlots = async (req, res) => {
     try {
-        const { doctorId, date, slotType } = req.query; // slotType = "Morning" or "Evening"
+        const { doctorId, date, slotType } = req.query;
 
         if (!doctorId || !date || !slotType) {
             return res.status(400).json({ error: "Missing required parameters" });
@@ -14,17 +13,14 @@ exports.getAvailableSlots = async (req, res) => {
         const doctor = await Doctor.findById(doctorId);
         if (!doctor) return res.status(404).json({ error: "Doctor not found" });
 
-        // Get shift times based on selection
         const shift = slotType === "Morning" ? doctor.morningSlot : doctor.eveningSlot;
-        const duration = doctor.slotDuration; // e.g., 10 minutes
+        const duration = doctor.slotDuration;
 
-        // Helper to convert "HH:MM" to minutes for easy math
         const timeToMinutes = (timeStr) => {
             const [hours, minutes] = timeStr.split(":").map(Number);
             return (hours * 60) + minutes;
         };
 
-        // Helper to convert minutes back to "HH:MM"
         const minutesToTime = (totalMinutes) => {
             const hours = Math.floor(totalMinutes / 60).toString().padStart(2, "0");
             const mins = (totalMinutes % 60).toString().padStart(2, "0");
@@ -35,12 +31,10 @@ exports.getAvailableSlots = async (req, res) => {
         const endMins = timeToMinutes(shift.end);
         let allPossibleSlots = [];
 
-        // Generate every 10 min interval
         for (let time = startMins; time < endMins; time += duration) {
             allPossibleSlots.push(minutesToTime(time));
         }
 
-        // Check database for already booked times on this specific day
         const today = new Date(date);
         today.setHours(0, 0, 0, 0);
         const tomorrow = new Date(today);
@@ -53,10 +47,7 @@ exports.getAvailableSlots = async (req, res) => {
             status: { $ne: "Cancelled" }
         }).select("appointmentTime");
 
-        // Extract just the time strings (e.g., ["10:10", "10:30"])
         const bookedTimes = bookedAppointments.map(app => app.appointmentTime);
-
-        // Filter out the booked ones
         const availableSlots = allPossibleSlots.filter(time => !bookedTimes.includes(time));
 
         res.json({ availableSlots });
@@ -257,10 +248,8 @@ exports.cancelAppointment = async (req, res) => {
 
 exports.hospitalBookAppointment = async (req, res) => {
     try {
-        // 1. ADDED: Extract the 'email' from the frontend
         const { patientName, email, doctorId, emergency, mobile, age, gender, symptoms, slot, appointmentTime, isFollowUp } = req.body;
         
-        // 2. ADDED: Backend Strict @gmail.com Validation
         if (!email || !/^[a-zA-Z0-9._%+-]+@gmail\.com$/.test(email.toLowerCase())) {
             return res.status(400).json({ error: "Only @gmail.com email addresses are allowed." });
         }
@@ -301,14 +290,12 @@ exports.hospitalBookAppointment = async (req, res) => {
             }
         }
         
-        // 3. SMART PATIENT CREATION (Prevents DB crash on Follow-ups!)
         let walkInPatient = await Patient.findOne({ email: email.toLowerCase() });
         
         if (!walkInPatient) {
-            // Only create a new profile if the email doesn't exist yet
             walkInPatient = new Patient({
                 name: patientName, 
-                email: email.toLowerCase(), // Replaced the fake walk-in email
+                email: email.toLowerCase(),
                 password: "walkin_password", 
                 mobile: mobile
             });
@@ -318,7 +305,6 @@ exports.hospitalBookAppointment = async (req, res) => {
         let queueNumber;
         
         if (emergency) {
-            // Put emergency at the very front of the line
             await Appointment.updateMany(
                 { doctor: doctorId, appointmentDate: { $gte: today, $lt: tomorrow }, slot: finalSlot },
                 { $inc: { queueNumber: 1 } }
@@ -361,7 +347,7 @@ exports.getMyAppointments = async (req, res) => {
         const appointments = await Appointment.find({ patient: req.user.id })
             .populate("doctor", "name")
             .populate("hospital", "name")
-            .sort({ appointmentDate: -1, appointmentTime: -1 }); // Sorted by date & time
+            .sort({ appointmentDate: -1, appointmentTime: -1 });
 
         res.json(appointments);
     } catch (error) {

@@ -2,7 +2,6 @@ const Doctor = require("../models/Doctor");
 
 exports.addDoctor = async (req, res) => {
     try {
-        // 1. We extract the exact new data the React frontend is sending
         const { 
             name, 
             specialization, 
@@ -16,7 +15,6 @@ exports.addDoctor = async (req, res) => {
         const userObj = req.user || req.hospital;
         const hospitalId = userObj.id || userObj._id;
 
-        // 2. We save it directly into the database
         const newDoctor = new Doctor({
             hospital: hospitalId,
             name,
@@ -30,10 +28,8 @@ exports.addDoctor = async (req, res) => {
 
         await newDoctor.save();
         
-        // Notice we are sending "message" back so the frontend alert works properly!
         res.status(201).json({ message: "Doctor added successfully", doctor: newDoctor });
     } catch (error) {
-        // If it fails, send the exact database error to the frontend
         res.status(500).json({ message: error.message, error: error.message });
     }
 };

@@ -22,21 +22,19 @@ const doctorSchema = new mongoose.Schema({
         type: Number,
         required: true
     },
-    // --- NEW: TIME SLOT CONFIGURATION ---
-    slotDuration: { 
-        type: Number, 
-        required: true, 
-        default: 10 // Interval in minutes
+    slotDuration: {
+        type: Number,
+        required: true,
+        default: 10
     },
     morningSlot: {
-        start: { type: String, default: "10:00" }, // 24-hour format
+        start: { type: String, default: "10:00" },
         end: { type: String, default: "14:00" }
     },
     eveningSlot: {
-        start: { type: String, default: "16:00" }, // 4:00 PM
-        end: { type: String, default: "20:00" }    // 8:00 PM
+        start: { type: String, default: "16:00" },
+        end: { type: String, default: "20:00" }
     },
-    // ------------------------------------
     createdAt: {
         type: Date,
         default: Date.now

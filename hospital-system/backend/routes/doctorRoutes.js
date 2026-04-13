@@ -3,8 +3,8 @@ const router = express.Router();
 const auth = require("../middleware/authMiddleware");
 
 const { 
-    addDoctor, 
-    getDoctors, 
+    addDoctor,
+    getDoctors,
     deleteDoctor
 } = require("../controllers/doctorController");
 
