@@ -9,6 +9,12 @@ exports.registerPatient = async (req, res) => {
     console.log(req.body);
 
     const { name, email, password, mobile } = req.body;
+
+    const gmailRegex = /^[a-zA-Z0-9._%+-]+@gmail\.com$/;
+        if (!email || !gmailRegex.test(email.toLowerCase())) {
+            return res.status(400).json({ error: "Only @gmail.com email addresses are allowed for registration." });
+        }
+        
     const existing = await Patient.findOne({ email });
     if (existing) {
         return res.status(400).json({ message: "Patient already exists" });

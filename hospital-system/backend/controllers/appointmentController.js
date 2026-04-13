@@ -64,11 +64,9 @@ exports.getAvailableSlots = async (req, res) => {
         res.status(500).json({ error: error.message });
     }
 };
-// ------------------------------------------------
 
 exports.bookAppointment = async (req, res) => {
     try {
-        // 1. Extract the new isFollowUp variable
         const { hospitalId, doctorId, appointmentDate, emergency, patientName, mobile, age, gender, symptoms, slot, appointmentTime, isFollowUp } = req.body;
 
         const phoneRegex = /^[0-9]{10}$/;
@@ -77,7 +75,6 @@ exports.bookAppointment = async (req, res) => {
         let finalSlot = slot;
         let finalTime = appointmentTime;
 
-        // 2. Emergency Bypass Logic (Just like the dashboard)
         if (emergency) {
             finalSlot = "Emergency";
             finalTime = "Immediate";
@@ -91,14 +88,13 @@ exports.bookAppointment = async (req, res) => {
         const tomorrow = new Date(today);
         tomorrow.setDate(tomorrow.getDate() + 1);
 
-        // 3. Prevent Double Booking (Only for regular patients)
         if (!emergency) {
             const existingAppt = await Appointment.findOne({
                 doctor: doctorId,
                 appointmentDate: { $gte: today, $lt: tomorrow },
                 slot: finalSlot,
                 appointmentTime: finalTime,
-                status: { $ne: "Cancelled" } 
+                status: { $ne: "Cancelled" },
             });
 
             if (existingAppt) {
@@ -123,7 +119,6 @@ exports.bookAppointment = async (req, res) => {
             queueNumber = currentSlotCount + 1;
         }
 
-        // 4. Save to Database
         const appointment = await Appointment.create({
             patient: req.user.id, 
             hospital: hospitalId, 
@@ -134,11 +129,11 @@ exports.bookAppointment = async (req, res) => {
             appointmentTime: finalTime, 
             status: "Pending", 
             emergency: emergency || false,
-            isFollowUp: isFollowUp || false, // <-- SAVED HERE
-            patientName, 
-            mobile, 
-            age, 
-            gender, 
+            isFollowUp: isFollowUp || false,
+            patientName,
+            mobile,
+            age,
+            gender,
             symptoms
         });
 
@@ -165,7 +160,7 @@ exports.getHospitalQueue = async (req, res) => {
         })
         .populate("patient", "name email")
         .populate("doctor", "name")
-        .sort({ appointmentTime: 1 }); // Sort by actual time now!
+        .sort({ appointmentTime: 1 });
 
         res.json(appointments);
     } catch (error) {
@@ -262,24 +257,27 @@ exports.cancelAppointment = async (req, res) => {
 
 exports.hospitalBookAppointment = async (req, res) => {
     try {
-        const { patientName, doctorId, emergency, mobile, age, gender, symptoms, slot, appointmentTime, isFollowUp } = req.body;
+        // 1. ADDED: Extract the 'email' from the frontend
+        const { patientName, email, doctorId, emergency, mobile, age, gender, symptoms, slot, appointmentTime, isFollowUp } = req.body;
         
+        // 2. ADDED: Backend Strict @gmail.com Validation
+        if (!email || !/^[a-zA-Z0-9._%+-]+@gmail\.com$/.test(email.toLowerCase())) {
+            return res.status(400).json({ error: "Only @gmail.com email addresses are allowed." });
+        }
+
         const phoneRegex = /^[0-9]{10}$/;
         if (!phoneRegex.test(mobile)) return res.status(400).json({ error: "Please enter a valid 10-digit mobile number." });
 
         let finalSlot = slot;
         let finalTime = appointmentTime;
 
-        // --- NEW EMERGENCY LOGIC ---
         if (emergency) {
             finalSlot = "Emergency";
-            finalTime = "Immediate"; // Automatically assign "Immediate"
+            finalTime = "Immediate";
         } else {
-            // Only enforce these rules if it is NOT an emergency
             if (!slot || !["Morning", "Evening"].includes(slot)) return res.status(400).json({ error: "Please select a valid slot (Morning/Evening)." });
             if (!appointmentTime) return res.status(400).json({ error: "Please select an exact appointment time." });
         }
-        // ---------------------------
 
         const userObj = req.user || req.hospital;
         const hospitalId = userObj.id || userObj._id;
@@ -289,7 +287,6 @@ exports.hospitalBookAppointment = async (req, res) => {
         const tomorrow = new Date(today);
         tomorrow.setDate(tomorrow.getDate() + 1);
 
-        // --- CHECK IF EXACT TIME IS ALREADY BOOKED (Only for regular patients) ---
         if (!emergency) {
             const existingAppt = await Appointment.findOne({
                 doctor: doctorId,
@@ -303,12 +300,20 @@ exports.hospitalBookAppointment = async (req, res) => {
                 return res.status(400).json({ error: `The time ${finalTime} is already booked.` });
             }
         }
-        // ---------------------------------------------
-
-        const walkInPatient = new Patient({
-            name: patientName, email: `walkin_${Date.now()}@hospital.com`, password: "walkin_password", mobile: mobile
-        });
-        await walkInPatient.save();
+        
+        // 3. SMART PATIENT CREATION (Prevents DB crash on Follow-ups!)
+        let walkInPatient = await Patient.findOne({ email: email.toLowerCase() });
+        
+        if (!walkInPatient) {
+            // Only create a new profile if the email doesn't exist yet
+            walkInPatient = new Patient({
+                name: patientName, 
+                email: email.toLowerCase(), // Replaced the fake walk-in email
+                password: "walkin_password", 
+                mobile: mobile
+            });
+            await walkInPatient.save();
+        }
 
         let queueNumber;
         
@@ -335,7 +340,7 @@ exports.hospitalBookAppointment = async (req, res) => {
             slot: finalSlot, 
             appointmentTime: finalTime, 
             emergency: emergency || false, 
-            isFollowUp: isFollowUp || false, // <-- SAVED HERE
+            isFollowUp: isFollowUp || false, 
             status: "Pending", 
             appointmentDate: new Date()
         });

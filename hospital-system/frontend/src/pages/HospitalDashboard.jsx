@@ -22,9 +22,9 @@ const HospitalDashboard = () => {
 
   const [showWalkInModal, setShowWalkInModal] = useState(false);
   
-  // ADDED: isFollowUp and previousAppointment state
+  // --- ADDED EMAIL TO STATE ---
   const [walkInForm, setWalkInForm] = useState({ 
-      patientName: "", mobile: "", age: "", gender: "Male", symptoms: "", 
+      patientName: "", email: "", mobile: "", age: "", gender: "Male", symptoms: "", 
       doctorId: "", slot: "Morning", appointmentTime: "", emergency: false, 
       isFollowUp: false, previousAppointment: null 
   });
@@ -130,6 +130,12 @@ const HospitalDashboard = () => {
   const handleWalkInBook = async (e) => {
     e.preventDefault();
 
+    // --- FRONTEND GMAIL VALIDATION ---
+    if (!walkInForm.email.toLowerCase().endsWith("@gmail.com")) {
+        alert("⚠️ Error: Only @gmail.com addresses are allowed for registration.");
+        return; 
+    }
+
     const phoneRegex = /^[0-9]{10}$/; 
     if (!phoneRegex.test(walkInForm.mobile)) {
       alert("⚠️ Please enter a valid 10-digit mobile number.");
@@ -139,7 +145,7 @@ const HospitalDashboard = () => {
     try {
       await API.post("/appointment/hospital-book", walkInForm, { headers: { Authorization: `Bearer ${token}` } });
       setShowWalkInModal(false);
-      setWalkInForm({ patientName: "", mobile: "", age: "", gender: "Male", symptoms: "", doctorId: "", slot: "Morning", appointmentTime: "", emergency: false, isFollowUp: false, previousAppointment: null });
+      setWalkInForm({ patientName: "", email: "", mobile: "", age: "", gender: "Male", symptoms: "", doctorId: "", slot: "Morning", appointmentTime: "", emergency: false, isFollowUp: false, previousAppointment: null });
       alert("Walk-in Appointment Booked Successfully!");
       fetchQueue(); 
     } catch (err) { alert("Failed to book: " + (err.response?.data?.error || err.message)); }
@@ -247,7 +253,6 @@ const HospitalDashboard = () => {
                 <button style={btnPrimary} onClick={() => setShowWalkInModal(true)}>➕ Book Walk-in</button>
               </div>
 
-              {/* --- 🚨 EMERGENCY QUEUE SECTION --- */}
               <div style={{ marginBottom: "30px", backgroundColor: "#fff5f5", padding: "15px", borderRadius: "8px", border: "1px solid #ffcdd2" }}>
                 <h4 style={{ margin: "0 0 15px 0", color: "#d32f2f", fontSize: "18px", borderBottom: "2px solid #ffcdd2", paddingBottom: "5px" }}>
                   🚨 Emergency Queue ({emergencyQueue.length})
@@ -275,7 +280,6 @@ const HospitalDashboard = () => {
                 )}
               </div>
 
-              {/* --- 📋 REGULAR QUEUE SECTION --- */}
               <div>
                 <h4 style={{ margin: "0 0 15px 0", color: "#2c6bed", fontSize: "18px", borderBottom: "2px solid #bbdefb", paddingBottom: "5px" }}>
                   📋 Regular Appointments ({regularQueue.length})
@@ -291,7 +295,6 @@ const HospitalDashboard = () => {
                         onMouseOut={(e) => e.currentTarget.style.boxShadow = "none"}
                       >
                         <div>
-                          {/* CHANGED: Removed Queue # and Added Follow-up Badge */}
                           <h4 style={{ margin: "0 0 5px 0", color: "#2c6bed", display: "flex", alignItems: "center" }}>
                             {item.appointmentTime} ({item.slot})
                             {item.isFollowUp && <span style={{ marginLeft: "10px", backgroundColor: "#e3f2fd", color: "#1976d2", padding: "3px 8px", borderRadius: "12px", fontSize: "11px", fontWeight: "bold", border: "1px solid #bbdefb" }}>🔄 Follow-up</span>}
@@ -440,7 +443,6 @@ const HospitalDashboard = () => {
           <div style={{...modalContentStyle, width: "500px", maxHeight: "90vh", overflowY: "auto"}}>
             <h3 style={{ marginTop: 0, borderBottom: "2px solid #eee", paddingBottom: "10px" }}>Book Walk-in Patient</h3>
             
-            {/* --- NEW FOLLOW UP / EMERGENCY TOGGLES --- */}
             <div style={{ display: "flex", gap: "20px", marginBottom: "15px", padding: "10px", backgroundColor: "#f8f9fa", borderRadius: "5px", border: "1px solid #eee" }}>
               <label style={{ display: "flex", alignItems: "center", gap: "5px", fontWeight: "bold", color: "#d32f2f", cursor: "pointer", fontSize: "14px" }}>
                 <input type="checkbox" checked={walkInForm.emergency} onChange={(e) => setWalkInForm({...walkInForm, emergency: e.target.checked, isFollowUp: false})} style={{ width: "16px", height: "16px" }} /> 🚨 Emergency
@@ -450,7 +452,6 @@ const HospitalDashboard = () => {
               </label>
             </div>
 
-            {/* --- NEW PREVIOUS VISIT DROPDOWN --- */}
             {walkInForm.isFollowUp && (
               <div style={{ marginBottom: "15px" }}>
                 <label style={labelStyle}>Select Previous Patient / Visit</label>
@@ -463,13 +464,14 @@ const HospitalDashboard = () => {
                          ...walkInForm, 
                          previousAppointment: prev,
                          patientName: prev.patientName || prev.patient?.name,
+                         email: prev.patient?.email || "", 
                          mobile: prev.mobile || "",
                          age: prev.age || "",
                          gender: prev.gender || "Male",
                          doctorId: prev.doctor?._id || ""
                        });
                     } else {
-                       setWalkInForm({...walkInForm, previousAppointment: null, patientName: "", mobile: "", age: "", doctorId: ""});
+                       setWalkInForm({...walkInForm, previousAppointment: null, patientName: "", email: "", mobile: "", age: "", doctorId: ""});
                     }
                   }}
                 >
@@ -481,7 +483,6 @@ const HospitalDashboard = () => {
                   ))}
                 </select>
 
-                {/* PREVIOUS VISIT DETAILS CARD */}
                 {walkInForm.previousAppointment && (
                   <div style={{ backgroundColor: "#f0f4f8", padding: "12px", borderRadius: "8px", border: "1px solid #d9e2ec", fontSize: "13px", color: "#334e68", marginBottom: "15px" }}>
                     <h4 style={{ margin: "0 0 8px 0", color: "#102a43", display: "flex", alignItems: "center", gap: "5px" }}>🕒 Previous Visit Details</h4>
@@ -495,14 +496,24 @@ const HospitalDashboard = () => {
             )}
 
             <form onSubmit={handleWalkInBook}>
+              
+              {/* --- NEW FORM LAYOUT WITH EMAIL FIELD --- */}
               <div style={{ display: "flex", gap: "10px" }}>
                 <div style={{ flex: 1 }}>
                   <label style={labelStyle}>Patient Name</label>
                   <input type="text" required style={inputStyle} value={walkInForm.patientName} onChange={(e) => setWalkInForm({...walkInForm, patientName: e.target.value})} />
                 </div>
-                <div style={{ width: "100px" }}>
+                <div style={{ width: "80px" }}>
                   <label style={labelStyle}>Age</label>
                   <input type="number" required style={inputStyle} value={walkInForm.age} onChange={(e) => setWalkInForm({...walkInForm, age: e.target.value})} />
+                </div>
+                <div style={{ width: "120px" }}>
+                  <label style={labelStyle}>Gender</label>
+                  <select required style={inputStyle} value={walkInForm.gender} onChange={(e) => setWalkInForm({...walkInForm, gender: e.target.value})}>
+                    <option value="Male">Male</option>
+                    <option value="Female">Female</option>
+                    <option value="Other">Other</option>
+                  </select>
                 </div>
               </div>
               
@@ -512,14 +523,11 @@ const HospitalDashboard = () => {
                   <input type="text" required style={inputStyle} value={walkInForm.mobile} onChange={(e) => setWalkInForm({...walkInForm, mobile: e.target.value})} />
                 </div>
                 <div style={{ flex: 1 }}>
-                  <label style={labelStyle}>Gender</label>
-                  <select required style={inputStyle} value={walkInForm.gender} onChange={(e) => setWalkInForm({...walkInForm, gender: e.target.value})}>
-                    <option value="Male">Male</option>
-                    <option value="Female">Female</option>
-                    <option value="Other">Other</option>
-                  </select>
+                  <label style={labelStyle}>Email (@gmail.com only)</label>
+                  <input type="email" required pattern=".+@gmail\.com" title="Please enter a valid @gmail.com address" style={{...inputStyle, borderColor: walkInForm.email && !walkInForm.email.endsWith("@gmail.com") ? "red" : "#ccc" }} value={walkInForm.email} onChange={(e) => setWalkInForm({...walkInForm, email: e.target.value})} />
                 </div>
               </div>
+              {/* ---------------------------------------- */}
 
               <label style={labelStyle}>{walkInForm.isFollowUp ? "Current Symptoms / Status Update" : "Symptoms"}</label>
               <textarea required rows="3" style={{...inputStyle, resize: "none"}} placeholder="Briefly describe the symptoms..." value={walkInForm.symptoms} onChange={(e) => setWalkInForm({...walkInForm, symptoms: e.target.value})}></textarea>
@@ -610,7 +618,6 @@ const HospitalDashboard = () => {
         </div>
       )}
 
-      {/* ... Doctor Modal and Resource Modal (Unchanged) ... */}
       {showDoctorModal && (
         <div style={modalOverlayStyle}>
           <div style={{...modalContentStyle, width: "500px"}}>
