@@ -83,7 +83,22 @@ const HospitalDashboard = () => {
           const res = await API.get(`/appointment/available-slots?doctorId=${walkInForm.doctorId}&date=${today}&slotType=${walkInForm.slot}`, { 
             headers: { Authorization: `Bearer ${token}` } 
           });
-          setAvailableSlots(res.data.availableSlots);
+
+          // --- NEW LOGIC: FILTER OUT PAST TIMES ---
+          const currentTime = new Date();
+          const currentTotalMinutes = (currentTime.getHours() * 60) + currentTime.getMinutes();
+
+          const futureSlots = res.data.availableSlots.filter(timeStr => {
+              const [hours, minutes] = timeStr.split(":").map(Number);
+              const slotTotalMinutes = (hours * 60) + minutes;
+              
+              // Only keep the slot if its time is greater than the current clock time
+              return slotTotalMinutes > currentTotalMinutes; 
+          });
+
+          setAvailableSlots(futureSlots);
+          // ----------------------------------------
+
         } catch (err) {
           console.log("Failed to fetch slots:", err);
         }
